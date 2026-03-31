@@ -39,7 +39,7 @@ export default function Feed() {
     if (/^https?:\/\//i.test(value)) return value;
     if (value.startsWith('/uploads')) {
       const isCapacitor = typeof window !== 'undefined' && window.location.protocol === 'capacitor:';
-      const socketUrl = isCapacitor ? 'http://167.60.107.149:3000' : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000');
+      const socketUrl = isCapacitor ? 'https://matebudy.onrender.com' : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000');
       return `${socketUrl}${value}`;
     }
     return apiUrl(value);

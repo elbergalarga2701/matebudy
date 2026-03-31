@@ -6,7 +6,7 @@ export const SOCKET_URL = rawSocketUrl.replace(/\/$/, '');
 
 const isCapacitor = typeof window !== 'undefined' && window.location.protocol === 'capacitor:';
 
-const SERVER_URL = 'https://gentle-houses-turn.loca.lt';
+const SERVER_URL = 'https://matebudy.onrender.com';
 
 export function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;

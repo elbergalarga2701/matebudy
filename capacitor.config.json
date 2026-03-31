@@ -1,0 +1,8 @@
+{
+  "appId": "com.matebudy.app",
+  "appName": "MateBudy",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "http"
+  }
+}

@@ -166,16 +166,20 @@ paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
 
-// Serve static files - Render builds to project root
+// Serve static files - Render builds to /opt/render/project/src/dist
+const projectRoot = '/opt/render/project/src';
 const possibleDistPaths = [
-  path.join(__dirname, '../dist'),  // /opt/render/project/src/dist
-  path.join(__dirname, '../../dist'), // One level up
-  path.join(__dirname, '../../../dist'), // Two levels up
-  path.join(process.cwd(), '../dist'),
+  path.join(projectRoot, 'dist'),
+  path.join(__dirname, '../dist'),
   path.join(process.cwd(), 'dist'),
+  path.join(__dirname, 'dist'),
 ];
+
 let distPath = '';
+console.log('[Server] __dirname:', __dirname);
+console.log('[Server] process.cwd():', process.cwd());
 console.log('[Server] Checking dist paths:');
+
 for (const p of possibleDistPaths) {
   const fullPath = path.join(p, 'index.html');
   const exists = fs.existsSync(fullPath);

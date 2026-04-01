@@ -1,4 +1,5 @@
-const RENDER_BACKEND = 'https://matebudy.onrender.com';
+const isProduction = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+const RENDER_BACKEND = isProduction ? 'https://matebudy.onrender.com' : 'http://localhost:3000';
 
 let computedApiUrl = RENDER_BACKEND;
 

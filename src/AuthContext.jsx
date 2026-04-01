@@ -4,9 +4,8 @@ import { getStoredItem, removeStoredItem, setStoredItem, syncStoredItems } from 
 
 const isCapacitor = typeof window !== 'undefined' && (
   window.location.protocol === 'capacitor:' ||
-  (typeof window.Capacitor !== 'undefined') ||
   (typeof window.android !== 'undefined') ||
-  (typeof window.webkit !== 'undefined' && window.webkit.messageHandlers)
+  (typeof window.webkit !== 'undefined' && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge)
 );
 
 const AuthContext = createContext(null);

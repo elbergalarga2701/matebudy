@@ -1,0 +1,44 @@
+/* Loading screen styles */
+.loading-shell {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  font-family: 'Outfit', system-ui, sans-serif;
+  background: linear-gradient(180deg, #f0fdf4 0%, #d1fae5 100%);
+  color: #1e293b;
+}
+
+.loading-card {
+  max-width: 520px;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px;
+  box-shadow: 0 18px 50px rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.12);
+}
+
+.loading-card strong {
+  display: block;
+  font-size: 18px;
+  margin-bottom: 10px;
+  color: #1e293b;
+}
+
+.loading-card p {
+  margin: 0;
+  color: #64748b;
+  line-height: 1.6;
+}
+
+.loading-error {
+  background: #fff7de;
+  color: #1e293b;
+  padding: 14px;
+  border-radius: 16px;
+  margin-top: 12px;
+  font-size: 12px;
+  line-height: 1.5;
+}

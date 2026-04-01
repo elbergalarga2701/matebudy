@@ -15,58 +15,10 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap"
     rel="stylesheet" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
-  <style>
-    :root {
-      --primary: #10b981;
-      --primary-dark: #059669;
-      --primary-light: #34d399;
-      --secondary: #06b6d4;
-      --bg: #f0fdf4;
-      --bg-white: #ffffff;
-      --accent: #f59e0b;
-      --danger: #ef4444;
-      --success: #10b981;
-      --text-dark: #1e293b;
-      --text-muted: #64748b;
-      --text-light: #cbd5e1;
-      --border: #e2e8f0;
-      --radius: 24px;
-      --font: 'Outfit', system-ui, sans-serif;
-    }
-
-    body {
-      background: linear-gradient(180deg, #f0fdf4 0%, #d1fae5 100%);
-      margin: 0;
-      font-family: 'Outfit', system-ui, sans-serif;
-    }
-  </style>
 </head>
 
 <body>
-  <div id="root"
-    style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;font-family:system-ui,sans-serif;background:#fffaf5;color:#20313a;">
-    <div
-      style="max-width:520px;width:100%;background:#ffffff;border-radius:24px;padding:24px;box-shadow:0 18px 50px rgba(112,170,35,0.14);border:1px solid rgba(32,75,87,0.12);">
-      <strong style="display:block;font-size:18px;margin-bottom:10px;">MateBudy se esta iniciando</strong>
-      <p style="margin:0;color:#57707a;line-height:1.6;">Si esta pantalla no cambia en unos segundos, hay un problema
-        cargando la app.</p>
-    </div>
-  </div>
-  <script>
-    window.__matebudyBooted = false;
-    window.setTimeout(function () {
-      if (window.__matebudyBooted) return;
-      var root = document.getElementById('root');
-      if (!root) return;
-      root.innerHTML =
-        '<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:#fffaf5;font-family:system-ui,sans-serif;color:#20313a;">' +
-        '<div style="max-width:560px;width:100%;background:#ffffff;border-radius:24px;padding:24px;box-shadow:0 18px 50px rgba(112,170,35,0.14);border:1px solid rgba(32,75,87,0.12);">' +
-        '<strong style="display:block;font-size:18px;margin-bottom:12px;">MateBudy no pudo cargar el bundle inicial</strong>' +
-        '<p style="margin:0 0 12px;color:#57707a;line-height:1.6;">Esto suele pasar cuando Android no logra abrir los archivos web internos o cuando falla un recurso antes de que React arranque.</p>' +
-        '<pre style="white-space:pre-wrap;word-break:break-word;background:#fff7de;color:#20313a;padding:14px;border-radius:16px;margin:0;font-size:12px;line-height:1.5;">URL: ' + window.location.href + '\nUA: ' + navigator.userAgent + '</pre>' +
-        '</div></div>';
-    }, 4000);
-  </script>
+  <div id="root"></div>
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

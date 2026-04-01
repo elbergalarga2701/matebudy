@@ -1,9 +1,6 @@
 .env
 .env.local
-server/.env
 node_modules
-server/node_modules
-dist
 android/
 uploads/
 *.db

@@ -3,6 +3,7 @@
   "appName": "MateBudy",
   "webDir": "dist",
   "server": {
-    "androidScheme": "http"
+    "androidScheme": "https",
+    "url": "https://matebudy.onrender.com"
   }
 }

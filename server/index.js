@@ -105,6 +105,26 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend running correctly' });
 });
 
+// Update JSON for auto-update
+app.get('/update.json', (req, res) => {
+  res.json({
+    version: '1.0.1',
+    url: 'https://matebudy.onrender.com/matebudy.apk',
+    notes: 'Mejoras en rendimiento y corrección de errores',
+    priority: 'high',
+  });
+});
+
+// Serve APK files
+app.get('/matebudy.apk', (req, res) => {
+  const apkPath = path.join(__dirname, 'matebudy.apk');
+  if (fs.existsSync(apkPath)) {
+    res.download(apkPath);
+  } else {
+    res.status(404).json({ error: 'APK no encontrado' });
+  }
+});
+
 // Register routes
 authRoutes(app);
 chatRoutes(app, io);

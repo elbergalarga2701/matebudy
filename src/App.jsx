@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -12,6 +12,7 @@ import Chat from './components/Chat';
 import MonitorHub from './components/MonitorHub';
 import Profile from './components/Profile';
 import BottomNav from './components/BottomNav';
+import AutoUpdater from './components/AutoUpdater';
 
 function App() {
   const { user, loading } = useAuth();
@@ -57,6 +58,7 @@ function App() {
   const fallbackPath = user ? authenticatedHomePath : '/login';
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+      <AutoUpdater />
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to={authenticatedHomePath} replace />} />
         <Route path="/register" element={<Register />} />
@@ -84,7 +86,7 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        <Route path="/admin" element={<AdminReview />} />
+        <Route path="/admin" element={user ? <AdminReview /> : <Navigate to="/login" replace />} />
         <Route path="/" element={user && !mustVerify && !mustOnboard ? <Feed /> : <Navigate to={fallbackPath} replace />} />
         <Route path="/mapa" element={user && !mustVerify && !mustOnboard ? <MapHub /> : <Navigate to={fallbackPath} replace />} />
         <Route path="/chat" element={user && !mustVerify && !mustOnboard ? <Chat /> : <Navigate to={fallbackPath} replace />} />

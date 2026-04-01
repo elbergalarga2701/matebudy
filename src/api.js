@@ -6,20 +6,30 @@ export const SOCKET_URL = rawSocketUrl.replace(/\/$/, '');
 
 const isCapacitor = typeof window !== 'undefined' && window.location.protocol === 'capacitor:';
 
-const SERVER_URL = 'https://matebudy.onrender.com';
+const RENDER_BACKEND = 'https://matebudy.onrender.com';
 
 export function apiUrl(path) {
   if (/^https?:\/\//i.test(path)) return path;
-  if (isCapacitor) {
-    const cleanPath = path.replace(/^\/api/, '');
-    return `${SERVER_URL}${cleanPath}`;
-  }
-  if (!API_BASE_URL) return path;
+  
+  // Use Render backend for both Capacitor and browser in production
+  const useRenderBackend = isCapacitor || window.location.hostname.includes('onrender.com');
+  const serverUrl = useRenderBackend ? RENDER_BACKEND : API_BASE_URL;
   const cleanPath = path.replace(/^\/api/, '');
-  return `${API_BASE_URL}${cleanPath}`;
+  return `${serverUrl}${cleanPath}`;
 }
 
 export function socketUrl() {
-  if (isCapacitor) return SERVER_URL;
+  if (isCapacitor) return RENDER_BACKEND;
+  // Use Render in production
+  if (window.location.hostname.includes('onrender.com')) return RENDER_BACKEND;
   return SOCKET_URL || 'http://localhost:3000';
+}
+
+export async function checkBackendHealth() {
+  try {
+    const resp = await fetch('https://matebudy.onrender.com/api/health', { method: 'GET', cache: 'no-store' });
+    return resp.ok;
+  } catch {
+    return false;
+  }
 }

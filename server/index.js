@@ -181,23 +181,29 @@ adminRoutes(app);
 // Serve static files - try multiple paths for Render compatibility
 const possibleDistPaths = [
   path.join(__dirname, 'dist'),
+  path.join(process.cwd(), 'dist'),
   path.join(__dirname, '../dist'),
-  path.join(__dirname, '../dist'),
+  path.join(process.cwd(), '../dist'),
 ];
 let distPath = '';
+console.log('[Server] Checking dist paths:');
 for (const p of possibleDistPaths) {
-  if (fs.existsSync(path.join(p, 'index.html'))) {
+  const fullPath = path.join(p, 'index.html');
+  const exists = fs.existsSync(fullPath);
+  console.log(`  ${fullPath} -> ${exists ? 'EXISTS' : 'NOT FOUND'}`);
+  if (exists && !distPath) {
     distPath = p;
-    break;
   }
 }
 
 if (distPath) {
+  console.log('[Server] Using dist path:', distPath);
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
+  console.log('[Server] WARNING: No dist path found!');
   app.get('*', (req, res) => {
     res.status(500).json({ error: 'Frontend no encontrado' });
   });

@@ -7,7 +7,7 @@ import App from './App.jsx'
 import { registerMatebudyServiceWorker } from './notifications.js'
 import './index.css'
 
-const Router = Capacitor.isNativePlatform() ? HashRouter : BrowserRouter
+const Router = HashRouter
 const rootElement = document.getElementById('root')
 
 window.__matebudyBooted = true

@@ -68,38 +68,38 @@ export function createRateLimiter({
  * Rate limiters preconfigurados para casos comunes
  */
 export const rateLimiters = {
-  // General para todas las rutas
+  // General para todas las rutas - MAS PERMISIVO para APK
   general: createRateLimiter({
     windowMs: 15 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '500', 10),
     message: 'Demasiadas peticiones desde tu IP',
   }),
 
   // Login más estricto
   login: createRateLimiter({
     windowMs: 15 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_MAX || '5', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_MAX || '20', 10),
     message: 'Demasiados intentos de inicio de sesión',
   }),
 
   // Registro moderado
   register: createRateLimiter({
     windowMs: 60 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_REGISTER_MAX || '10', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_REGISTER_MAX || '30', 10),
     message: 'Demasiados registros desde tu IP',
   }),
 
-  // API endpoints
+  // API endpoints - MAS PERMISIVO
   api: createRateLimiter({
     windowMs: 15 * 60 * 1000,
-    maxRequests: 200,
+    maxRequests: 500,
     message: 'Demasiadas peticiones a la API',
   }),
 
   // Upload de archivos
   upload: createRateLimiter({
     windowMs: 60 * 60 * 1000,
-    maxRequests: 20,
+    maxRequests: 50,
     message: 'Demasiados archivos subidos',
   }),
 };

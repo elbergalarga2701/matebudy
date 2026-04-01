@@ -1,6 +1,13 @@
 import { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { apiUrl } from './api';
+import { apiUrl, socketUrl } from './api';
 import { getStoredItem, removeStoredItem, setStoredItem, syncStoredItems } from './storage';
+
+const isCapacitor = typeof window !== 'undefined' && (
+  window.location.protocol === 'capacitor:' ||
+  (typeof window.Capacitor !== 'undefined') ||
+  (typeof window.android !== 'undefined') ||
+  (typeof window.webkit !== 'undefined' && window.webkit.messageHandlers)
+);
 
 const AuthContext = createContext(null);
 let refreshPromise = null;
@@ -91,6 +98,8 @@ async function parseJsonResponse(response, fallbackMessage) {
   const raw = await response.text();
   let data = {};
 
+  console.log('[parseJsonResponse] raw response:', raw.substring(0, 500));
+
   if (raw) {
     try {
       data = JSON.parse(raw);
@@ -98,6 +107,8 @@ async function parseJsonResponse(response, fallbackMessage) {
       throw new Error(fallbackMessage);
     }
   }
+
+  console.log('[parseJsonResponse] parsed:', data, 'ok:', response.ok);
 
   if (!response.ok) {
     throw new Error(data.error || fallbackMessage);
@@ -130,13 +141,45 @@ async function apiFetch(path, options = {}) {
   
   console.log('[apiFetch] Request:', { url: fullUrl, method: options.method, isFormData });
 
-  // Para FormData, no creamos headers manualmente para permitir que el navegador
-  // establezca automáticamente Content-Type con el boundary correcto
+  // Para Capacitor, usar XMLHttpRequest para evitar problemas de CORS en Android WebView
+  if (isCapacitor && !isFormData) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open(options.method || 'GET', fullUrl, true);
+      
+      // Set headers
+      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      if (options.headers) {
+        Object.keys(options.headers).forEach(key => {
+          xhr.setRequestHeader(key, options.headers[key]);
+        });
+      }
+      
+      xhr.onload = function() {
+        const response = {
+          ok: xhr.status >= 200 && xhr.status < 300,
+          status: xhr.status,
+          json: () => Promise.resolve(JSON.parse(xhr.responseText)),
+          text: () => Promise.resolve(xhr.responseText),
+        };
+        console.log('[apiFetch] Response:', { status: xhr.status, ok: response.ok, url: fullUrl });
+        resolve(response);
+      };
+      
+      xhr.onerror = function() {
+        console.error('[apiFetch] XHR error:', { url: fullUrl, status: xhr.status });
+        reject(new Error('No se pudo conectar con el servidor'));
+      };
+      
+      xhr.send(options.body || null);
+    });
+  }
+
+  // Para web, usar fetch normal
   let headers;
   if (isFormData) {
     headers = new Headers();
     if (token) headers.set('Authorization', `Bearer ${token}`);
-    // No establecemos Content-Type - el navegador lo hará automáticamente
   } else {
     headers = new Headers(options.headers || {});
     if (token && !headers.has('Authorization')) {
@@ -147,7 +190,6 @@ async function apiFetch(path, options = {}) {
   const executeFetch = () => fetch(fullUrl, {
     ...options,
     headers,
-    credentials: 'include',
   });
 
   try {
@@ -161,7 +203,6 @@ async function apiFetch(path, options = {}) {
     if (!refreshPromise) {
       refreshPromise = fetch(apiUrl('/api/auth/refresh'), {
         method: 'POST',
-        credentials: 'include',
       })
         .then((refreshResponse) => refreshResponse.json().then((data) => ({ refreshResponse, data })))
         .then(({ refreshResponse, data }) => {
@@ -197,7 +238,6 @@ async function apiFetch(path, options = {}) {
     response = await fetch(fullUrl, {
       ...options,
       headers: retriedHeaders,
-      credentials: 'include',
     });
     console.log('[apiFetch] Retried response:', { status: response.status, ok: response.ok });
     return response;
@@ -374,6 +414,7 @@ export function AuthProvider({ children }) {
   };
 
   const login = async (email, password) => {
+    console.log('[Auth] Login attempt:', email);
     const response = await apiFetch('/api/auth/login', {
       method: 'POST',
       headers: {
@@ -382,7 +423,9 @@ export function AuthProvider({ children }) {
       body: JSON.stringify({ email, password }),
     });
 
+    console.log('[Auth] Login response status:', response.status);
     const data = await parseJsonResponse(response, 'Credenciales inválidas');
+    console.log('[Auth] Login data:', { hasToken: !!data.token, hasUser: !!data.user });
     return syncSession(data);
   };
 

@@ -23,10 +23,12 @@ export default function Feed() {
   const [toast, setToast] = useState('');
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
+  const [deletingPostId, setDeletingPostId] = useState(null);
   const [commentDrafts, setCommentDrafts] = useState({});
   const [expandedCommentBox, setExpandedCommentBox] = useState({});
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [selectedImage, setSelectedImage] = useState(null);
+  const [hiddenBrokenImages, setHiddenBrokenImages] = useState({});
   const fileInputRef = useRef(null);
 
   const authHeaders = useMemo(() => {
@@ -34,28 +36,26 @@ export default function Feed() {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, [user?.uid]);
 
-  const resolveMediaUrl = (value) => {
+  const resolveAssetUrl = (value) => {
     if (!value) return '';
-    if (value.startsWith('/uploads')) return publicFileUrl(value);
-    return apiUrl(value);
+    const url = publicFileUrl(value);
+    return url;
   };
 
-  const resolveAvatarUrl = (value) => {
-    if (!value) return '';
-    if (value.startsWith('/uploads')) return publicFileUrl(value);
-    return value;
+  const showToast = (message) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 2500);
   };
 
   const loadPosts = async () => {
     const response = await fetch(apiUrl('/api/posts'), {
-      headers: {
-        ...authHeaders,
-      },
+      headers: { ...authHeaders },
       credentials: 'include',
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'No se pudo cargar el muro');
     setPosts(data.posts || []);
+    setHiddenBrokenImages({});
   };
 
   useEffect(() => {
@@ -78,50 +78,63 @@ export default function Feed() {
       const hasImage = Boolean(selectedImage);
       const response = await fetch(apiUrl('/api/posts'), {
         method: 'POST',
-        headers: hasImage
-          ? {
-              ...authHeaders,
-            }
-          : {
-              'Content-Type': 'application/json',
-              ...authHeaders,
-            },
+        headers: hasImage ? { ...authHeaders } : { 'Content-Type': 'application/json', ...authHeaders },
         credentials: 'include',
         body: hasImage
           ? (() => {
-              const formData = new FormData();
-              formData.append('content', draft.trim());
-              formData.append('mood', mood);
-              formData.append('image', selectedImage);
-              return formData;
-            })()
-          : JSON.stringify({
-              content: draft.trim(),
-              mood,
-            }),
+            const formData = new FormData();
+            formData.append('content', draft.trim());
+            formData.append('mood', mood);
+            formData.append('image', selectedImage);
+            return formData;
+          })()
+          : JSON.stringify({ content: draft.trim(), mood }),
       });
+
       const raw = await response.text();
       let data = {};
       if (raw) {
-        try {
-          data = JSON.parse(raw);
-        } catch (parseError) {
-          throw new Error(raw || 'No se pudo públicar');
-        }
+        try { data = JSON.parse(raw); } catch (error) { throw new Error(raw || 'No se pudo publicar'); }
       }
-      if (!response.ok) throw new Error(data.error || 'No se pudo públicar');
+
+      if (!response.ok) throw new Error(data.error || 'No se pudo publicar');
 
       setPosts((prev) => [data.post, ...prev]);
       setDraft('');
       setMood('Comunidad');
       setSelectedImage(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      setToast('Publicacion creada para el muro');
-      setTimeout(() => setToast(''), 2500);
+      showToast('Publicacion creada para el muro');
     } catch (error) {
-      setToast(error.message || 'No se pudo públicar');
+      showToast(error.message || 'No se pudo publicar');
     } finally {
       setPublishing(false);
+    }
+  };
+
+  const deletePost = async (postId) => {
+    setDeletingPostId(String(postId));
+
+    try {
+      const response = await fetch(apiUrl(`/api/posts/${postId}`), {
+        method: 'DELETE',
+        headers: { ...authHeaders },
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo borrar la publicacion');
+
+      setPosts((prev) => prev.filter((post) => post.id !== String(postId)));
+      setHiddenBrokenImages((prev) => {
+        const next = { ...prev };
+        delete next[String(postId)];
+        return next;
+      });
+      showToast('Publicacion eliminada');
+    } catch (error) {
+      showToast(error.message || 'No se pudo borrar la publicacion');
+    } finally {
+      setDeletingPostId(null);
     }
   };
 
@@ -129,16 +142,14 @@ export default function Feed() {
     try {
       const response = await fetch(apiUrl(`/api/posts/${postId}/like`), {
         method: 'POST',
-        headers: {
-          ...authHeaders,
-        },
+        headers: { ...authHeaders },
         credentials: 'include',
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'No se pudo guardar el like');
       setPosts((prev) => prev.map((post) => (post.id === String(postId) ? data.post : post)));
     } catch (error) {
-      setToast(error.message);
+      showToast(error.message);
     }
   };
 
@@ -149,10 +160,7 @@ export default function Feed() {
     try {
       const response = await fetch(apiUrl(`/api/posts/${postId}/comments`), {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         credentials: 'include',
         body: JSON.stringify({ text: draftComment }),
       });
@@ -160,8 +168,9 @@ export default function Feed() {
       if (!response.ok) throw new Error(data.error || 'No se pudo guardar el comentario');
       setPosts((prev) => prev.map((post) => (post.id === String(postId) ? data.post : post)));
       setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
+      setEditingCommentId(null);
     } catch (error) {
-      setToast(error.message);
+      showToast(error.message);
     }
   };
 
@@ -178,10 +187,7 @@ export default function Feed() {
     try {
       const response = await fetch(apiUrl(`/api/posts/${postId}/comments/${editingCommentId}`), {
         method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          ...authHeaders,
-        },
+        headers: { 'Content-Type': 'application/json', ...authHeaders },
         credentials: 'include',
         body: JSON.stringify({ text: nextText }),
       });
@@ -192,7 +198,7 @@ export default function Feed() {
       setEditingCommentId(null);
       setExpandedCommentBox((prev) => ({ ...prev, [postId]: false }));
     } catch (error) {
-      setToast(error.message);
+      showToast(error.message);
     }
   };
 
@@ -200,9 +206,7 @@ export default function Feed() {
     try {
       const response = await fetch(apiUrl(`/api/posts/${postId}/comments/${commentId}`), {
         method: 'DELETE',
-        headers: {
-          ...authHeaders,
-        },
+        headers: { ...authHeaders },
         credentials: 'include',
       });
       const data = await response.json().catch(() => ({}));
@@ -213,188 +217,251 @@ export default function Feed() {
         setCommentDrafts((prev) => ({ ...prev, [postId]: '' }));
       }
     } catch (error) {
-      setToast(error.message);
+      showToast(error.message);
     }
   };
 
   return (
-    <div className="app-scroll social-feed-shell" style={{ padding: '0 0 110px', minHeight: '100vh' }}>
-      {toast && <div className="toast toast-success">{toast}</div>}
+    <div className="social-feed-shell">
+      {toast && <div className="toast">{toast}</div>}
 
-      <div className="page-shell social-feed-layout">
-        <section className="social-feed-main">
-          <header className="social-topbar animate-in">
-            <div className="social-topbar-copy">
-              <span className="social-topbar-kicker">Inicio</span>
-              <h1>Hola, {user?.displayName || 'amigo'}</h1>
-              <p>Muro real para compartir planes, pedir compañía y publicar fotos sin perder tus datos cuando cambias el perfil.</p>
+      {/* Header */}
+      <header className="social-topbar animate-in">
+        <div>
+          <span className="badge badge-secondary" style={{ marginBottom: '12px' }}>Inicio</span>
+          <h1>Hola, {user?.displayName || 'amigo'}</h1>
+          <p style={{ marginTop: '8px' }}>Comparte momentos, pide compania y conecta con la comunidad.</p>
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <span className="badge badge-primary">
+            <i className="fa-solid fa-heart"></i> Comunidad
+          </span>
+          <span className="badge badge-accent">
+            <i className="fa-solid fa-user-tag"></i> {user?.roleLabel}
+          </span>
+        </div>
+      </header>
+
+      {/* Composer */}
+      <section className="social-composer animate-in">
+        <div className="social-composer-head">
+          {user?.avatar ? (
+            <img src={resolveAssetUrl(user.avatar)} alt={user.displayName || 'Perfil'} className="social-user-avatar" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div className="social-user-avatar">
+              {(user?.displayName || 'U').charAt(0).toUpperCase()}
             </div>
+          )}
 
-            <div className="social-topbar-tags">
-              <span className="badge badge-secondary"><i className="fa-solid fa-heart"></i> Comunidad</span>
-              <span className="badge badge-accent"><i className="fa-solid fa-user-tag"></i> {user?.roleLabel}</span>
+          <div>
+            <strong style={{ display: 'block', fontSize: '15px' }}>Comparte algo</strong>
+            <span style={{ fontSize: '13px', color: 'var(--text-muted)' }}>Que esta pasando hoy?</span>
+          </div>
+        </div>
+
+        <textarea
+          className="social-composer-input"
+          rows={3}
+          placeholder="Escribe algo..."
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+
+        <div style={{ display: 'flex', gap: '12px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <select
+            className="form-input"
+            value={mood}
+            onChange={(event) => setMood(event.target.value)}
+            style={{ padding: '10px 14px', fontSize: '14px' }}
+          >
+            {MOODS.map((option) => <option key={option} value={option}>{option}</option>)}
+          </select>
+
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => fileInputRef.current?.click()}
+            style={{ padding: '10px 20px', fontSize: '14px' }}
+          >
+            <i className="fa-solid fa-image"></i> {selectedImage ? selectedImage.name : 'Foto'}
+          </button>
+          <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(event) => setSelectedImage(event.target.files?.[0] || null)} />
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={publishDraft}
+            disabled={publishing || (!draft.trim() && !selectedImage)}
+            style={{ padding: '12px 24px' }}
+          >
+            <i className={`fa-solid ${publishing ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i>
+            {publishing ? 'Publicando...' : 'Publicar'}
+          </button>
+        </div>
+      </section>
+
+      {/* Posts Feed */}
+      <div className="social-post-stream">
+        {loading ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <i className="fa-solid fa-spinner fa-spin"></i>
             </div>
-          </header>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Cargando publicaciones</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Un momento...</p>
+          </div>
+        ) : posts.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <i className="fa-solid fa-camera-retro"></i>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Sin publicaciones</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Se el primero en publicar algo!</p>
+          </div>
+        ) : (
+          posts.map((post) => (
+            <article key={post.id} className="social-post animate-in">
+              <div className="social-post-header">
+                <div className="social-post-author">
+                  {post.authorAvatar ? (
+                    <img src={resolveAssetUrl(post.authorAvatar)} alt={post.author} className="social-user-avatar" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div className="social-user-avatar">{post.author.charAt(0).toUpperCase()}</div>
+                  )}
 
-          <section className="social-composer">
-            <div className="social-composer-head">
-              {user?.avatar ? (
-                <img src={resolveAvatarUrl(user.avatar)} alt={user.displayName || 'Perfil'} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
-              ) : (
-                <div className="feed-avatar-fallback social-user-avatar">
-                  {(user?.displayName || 'U').charAt(0).toUpperCase()}
+                  <div>
+                    <strong style={{ display: 'block', fontSize: '15px' }}>{post.author}</strong>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{formatTimeLabel(post.createdAt)}</span>
+                  </div>
                 </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span className="badge badge-secondary">{post.mood}</span>
+                  {String(post.authorId) === String(user?.uid) && (
+                    <button
+                      type="button"
+                      onClick={() => void deletePost(post.id)}
+                      disabled={deletingPostId === post.id}
+                      style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'var(--danger)',
+                        cursor: deletingPostId === post.id ? 'not-allowed' : 'pointer',
+                        padding: '6px',
+                        opacity: deletingPostId === post.id ? 0.5 : 1,
+                      }}
+                    >
+                      <i className={`fa-solid ${deletingPostId === post.id ? 'fa-spinner fa-spin' : 'fa-trash'}`}></i>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {post.content && <p className="social-post-body">{post.content}</p>}
+
+              {post.imageUrl && !hiddenBrokenImages[post.id] && (
+                <img
+                  src={resolveAssetUrl(post.imageUrl)}
+                  alt="Publicacion"
+                  className="social-post-image"
+                  onError={() => {
+                    setHiddenBrokenImages((prev) => ({ ...prev, [post.id]: true }));
+                    showToast('No se pudo cargar la imagen');
+                  }}
+                />
               )}
 
-              <div>
-                <strong>Comparte algo con la comunidad</strong>
-                <span>Puedes públicar texto y fotos. El corrector del teclado queda habilitado.</span>
+              <div className="social-post-actions">
+                <button
+                  type="button"
+                  className={`reaction-chip ${post.likedByMe ? 'active' : ''}`}
+                  onClick={() => void toggleLike(post.id)}
+                >
+                  <i className={`fa-solid ${post.likedByMe ? 'fa-heart' : 'fa-heart'}`}></i>
+                  {post.likedByCount}
+                </button>
+                <span style={{ fontSize: '13px', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <i className="fa-solid fa-comment"></i> {post.comments.length} comentarios
+                </span>
               </div>
-            </div>
 
-            <textarea
-              className="form-input textarea-field social-composer-input"
-              rows={3}
-              placeholder="Que esta pasando hoy? Ejemplo: salgo a caminar por la rambla a las 19, si alguien quiere compañía se suma."
-              value={draft}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
-              onChange={(e) => setDraft(e.target.value)}
-            />
-
-            <div className="info-chip-row" style={{ marginTop: '12px' }}>
-              <select className="form-input" value={mood} onChange={(e) => setMood(e.target.value)} style={{ maxWidth: '220px' }}>
-                {MOODS.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              <button type="button" className="pill-button pill-button-secondary" onClick={() => fileInputRef.current?.click()}>
-                <i className="fa-solid fa-image"></i> {selectedImage ? selectedImage.name : 'Agregar foto'}
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={(e) => setSelectedImage(e.target.files?.[0] || null)} />
-            </div>
-
-            <div className="social-composer-actions">
-              <button type="button" className="pill-button pill-button-primary" onClick={publishDraft} disabled={publishing || (!draft.trim() && !selectedImage)}>
-                <i className={`fa-solid ${publishing ? 'fa-spinner fa-spin' : 'fa-paper-plane'}`}></i> {publishing ? 'Publicando...' : 'Publicar'}
-              </button>
-              <span className="social-inline-note">Tus públicaciónes y comentarios quedan sincronizados con el servidor.</span>
-            </div>
-          </section>
-
-          <div className="social-post-stream">
-            {loading ? (
-              <div className="empty-state">
-                <div className="empty-state-icon"><i className="fa-solid fa-spinner fa-spin"></i></div>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Cargando muro</h3>
-                <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>Estamos trayendo publicaciones reales.</p>
-              </div>
-            ) : posts.length === 0 ? (
-              <div className="empty-state">
-                <div className="empty-state-icon"><i className="fa-solid fa-camera-retro"></i></div>
-                <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Todavía no hay publicaciones</h3>
-                <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>Haz la primera publicación del muro con texto o una foto.</p>
-              </div>
-            ) : posts.map((post) => (
-              <article key={post.id} className="social-post">
-                <div className="social-post-header">
-                  <div className="social-post-author">
-                    {post.authorAvatar ? (
-                      <img src={resolveAvatarUrl(post.authorAvatar)} alt={post.author} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
-                    ) : (
-                      <div className="feed-avatar-fallback social-user-avatar">{post.author.charAt(0).toUpperCase()}</div>
-                    )}
-
-                    <div className="social-post-author-copy">
-                      <strong>{post.author}</strong>
-                      <span>{post.role} · {formatTimeLabel(post.createdAt)}</span>
-                    </div>
-                  </div>
-
-                  <span className="badge badge-primary">{post.mood}</span>
-                </div>
-
-                {post.content && <p className="social-post-body">{post.content}</p>}
-                {post.imageUrl && (
-                  <div className="social-post-image-container">
-                    <img src={resolveMediaUrl(post.imageUrl)} alt="Publicacion" className="social-post-image" />
-                  </div>
-                )}
-
-                <div className="social-post-actions">
-                  <button type="button" className={`reaction-chip ${post.likedByMe ? 'active' : ''}`} onClick={() => void toggleLike(post.id)}>
-                    <i className={`fa-solid ${post.likedByMe ? 'fa-heart-circle-check' : 'fa-heart'}`}></i> Me gusta {post.likedByCount}
-                  </button>
-                  <span className="social-post-meta"><i className="fa-solid fa-comment"></i> {post.comments.length} comentarios</span>
-                </div>
-
-                <div className="social-comments">
+              {/* Comments */}
+              {post.comments.length > 0 && (
+                <div className="social-comments" style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--border-light)' }}>
                   <div className="social-comments-list">
                     {post.comments.map((comment) => (
-                      <div key={comment.id} className="social-comment">
-                        <div className="social-comment-head">
-                          <strong>{comment.author}</strong>
+                      <div key={comment.id} className="social-comment" style={{ marginBottom: '12px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
+                          <strong style={{ fontSize: '14px' }}>{comment.author}</strong>
                           {comment.authorId === user?.uid && (
-                            <div className="social-comment-actions">
-                              <button type="button" className="social-comment-link" onClick={() => startEditComment(post.id, comment)}>Editar</button>
-                              <button type="button" className="social-comment-link danger" onClick={() => void deleteComment(post.id, comment.id)}>Borrar</button>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button
+                                type="button"
+                                onClick={() => startEditComment(post.id, comment)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--primary)', fontSize: '12px', cursor: 'pointer', padding: 0 }}
+                              >
+                                Editar
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => void deleteComment(post.id, comment.id)}
+                                style={{ background: 'transparent', border: 'none', color: 'var(--danger)', fontSize: '12px', cursor: 'pointer', padding: 0 }}
+                              >
+                                Borrar
+                              </button>
                             </div>
                           )}
                         </div>
-                        <p>{comment.text}</p>
-                        <span>{formatTimeLabel(comment.createdAt)}</span>
+                        <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '4px' }}>{comment.text}</p>
+                        <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{formatTimeLabel(comment.createdAt)}</span>
                       </div>
                     ))}
                   </div>
 
-                  <div className={`social-comment-composer ${expandedCommentBox[post.id] ? 'expanded' : 'collapsed'}`}>
+                  <div className={`social-comment-composer ${expandedCommentBox[post.id] ? 'expanded' : 'collapsed'}`} style={{ marginTop: '12px' }}>
                     <input
                       type="text"
                       className="form-input"
                       placeholder={editingCommentId ? 'Edita tu comentario...' : 'Escribe un comentario...'}
                       value={commentDrafts[post.id] || ''}
-                      spellCheck
-                      autoCorrect="on"
-                      autoCapitalize="sentences"
                       onFocus={() => setExpandedCommentBox((prev) => ({ ...prev, [post.id]: true }))}
-                      onChange={(e) => setCommentDrafts((prev) => ({ ...prev, [post.id]: e.target.value }))}
-                      onKeyDown={(e) => e.key === 'Enter' && void (editingCommentId ? saveEditedComment(post.id) : submitComment(post.id))}
+                      onChange={(event) => setCommentDrafts((prev) => ({ ...prev, [postId]: event.target.value }))}
+                      onKeyDown={(event) => event.key === 'Enter' && void (editingCommentId ? saveEditedComment(post.id) : submitComment(post.id))}
+                      style={{ fontSize: '14px', padding: '10px 14px' }}
                     />
-                    <div className="social-comment-cta-row">
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '8px', justifyContent: 'flex-end' }}>
                       {editingCommentId && (
                         <button
                           type="button"
-                          className="pill-button pill-button-secondary social-comment-button"
                           onClick={() => {
                             setEditingCommentId(null);
                             setCommentDrafts((prev) => ({ ...prev, [post.id]: '' }));
                           }}
+                          className="btn btn-secondary"
+                          style={{ padding: '8px 16px', fontSize: '13px' }}
                         >
                           Cancelar
                         </button>
                       )}
                       <button
                         type="button"
-                        className="pill-button pill-button-primary social-comment-button"
                         onClick={() => void (editingCommentId ? saveEditedComment(post.id) : submitComment(post.id))}
+                        className="btn btn-primary"
+                        style={{ padding: '8px 16px', fontSize: '13px' }}
                       >
-                        <i className={`fa-solid ${editingCommentId ? 'fa-floppy-disk' : 'fa-reply'}`}></i> {editingCommentId ? 'Guardar' : 'Enviar'}
+                        <i className={`fa-solid ${editingCommentId ? 'fa-floppy-disk' : 'fa-reply'}`}></i>
+                        {editingCommentId ? 'Guardar' : 'Enviar'}
                       </button>
                     </div>
                   </div>
                 </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
-        <aside className="social-feed-side">
-          <section className="social-side-section">
-            <div className="social-side-title">
-              <h3>Muro real</h3>
-              <p>Las públicaciónes usan tus datos actuales, asi que si actualizas tu perfil tambien se actualiza como apareces en el muro.</p>
-            </div>
-          </section>
-        </aside>
+              )}
+            </article>
+          ))
+        )}
       </div>
     </div>
   );

@@ -1,30 +1,31 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { PASSWORD_RULE_HINT, evaluatePassword, validatePassword } from '../passwordRules';
 
 const ROLE_OPTIONS = [
   {
     value: 'service_provider',
     title: 'Ofrece servicio',
-    description: 'Ofrece ayuda profesiónal o técnica, coordina disponibilidad y puede cobrar por el servicio.',
+    description: 'Ofrece ayuda profesional o tecnica, coordina disponibilidad y puede cobrar por el servicio.',
     icon: 'fa-solid fa-briefcase',
   },
   {
     value: 'monitor',
     title: 'Monitor',
-    description: 'Monitorea a un familiar en tiempo real, batería, recorrido, ubicación y recibe alertas del teléfono monitoreado.',
+    description: 'Monitorea a un familiar en tiempo real, bateria, recorrido, ubicacion y alertas.',
     icon: 'fa-solid fa-shield-halved',
   },
   {
     value: 'seeker',
     title: 'Necesito servicio',
-    description: 'Busca ayuda, coordina sesiónes y encuentra perfiles según disponibilidad.',
+    description: 'Busca ayuda, coordina sesiones y encuentra perfiles segun disponibilidad.',
     icon: 'fa-solid fa-magnifying-glass',
   },
   {
     value: 'companion',
     title: 'Especialista solidario',
-    description: 'Brinda acompañamiento solidario sin cobrar, enfocado en apoyo humano.',
+    description: 'Brinda acompanamiento solidario sin cobrar, enfocado en apoyo humano.',
     icon: 'fa-solid fa-hand-holding-heart',
   },
 ];
@@ -59,15 +60,20 @@ export default function Register() {
   const navigate = useNavigate();
   const { user, registerAccountWithIdentity, logout } = useAuth();
 
-  useEffect(() => {
-    if (error) setError('');
-    if (success) setSuccess('');
-  }, [step, role, name, email, password, confirm, documentType, documentNumber, selfieFile, documentFile]);
-
   const selectedRole = useMemo(
     () => ROLE_OPTIONS.find((option) => option.value === role) || ROLE_OPTIONS[0],
     [role],
   );
+
+  const passwordState = useMemo(
+    () => evaluatePassword(password),
+    [password],
+  );
+
+  useEffect(() => {
+    if (error) setError('');
+    if (success) setSuccess('');
+  }, [step, role, name, email, password, confirm, documentType, documentNumber, selfieFile, documentFile]);
 
   const validateAccountFields = () => {
     setError('');
@@ -84,17 +90,18 @@ export default function Register() {
     }
 
     if (!password || !confirm) {
-      setError('Las contraseñas son obligatorias');
+      setError('Las contrasenas son obligatorias');
       return false;
     }
 
     if (password !== confirm) {
-      setError('Las contraseñas no coinciden');
+      setError('Las contrasenas no coinciden');
       return false;
     }
 
-    if (password.length < 6) {
-      setError('La contraseña debe tener al menos 6 caracteres');
+    const passwordValidation = validatePassword(password);
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.message || PASSWORD_RULE_HINT);
       return false;
     }
 
@@ -103,7 +110,7 @@ export default function Register() {
 
   const validateIdentityFields = () => {
     if (!documentNumber.trim()) {
-      setError('Debes ingresar el número del documento');
+      setError('Debes ingresar el numero del documento');
       return false;
     }
 
@@ -115,16 +122,11 @@ export default function Register() {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
 
-    if (!validateAccountFields()) {
-      return;
-    }
-
-    if (!validateIdentityFields()) {
-      return;
-    }
+    if (!validateAccountFields()) return;
+    if (!validateIdentityFields()) return;
 
     setLoading(true);
 
@@ -142,21 +144,12 @@ export default function Register() {
       });
       setSuccess('Cuenta creada y enviada a revision de identidad.');
       setTimeout(() => navigate('/'), 900);
-    } catch (err) {
-      setError(err.message);
+    } catch (submitError) {
+      setError(submitError.message);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
-
-  const getPasswordStrength = () => {
-    if (password.length === 0) return { level: 0, text: '' };
-    if (password.length < 6) return { level: 1, text: 'Debil' };
-    if (password.length < 8) return { level: 2, text: 'Media' };
-    return { level: 3, text: 'Fuerte' };
-  };
-
-  const passwordStrength = getPasswordStrength();
 
   const handleAvatarChange = async (event) => {
     const file = event.target.files?.[0];
@@ -166,8 +159,8 @@ export default function Register() {
       const nextAvatar = await fileToDataUrl(file);
       setAvatar(nextAvatar);
       setAvatarName(file.name);
-    } catch (err) {
-      setError(err.message);
+    } catch (avatarError) {
+      setError(avatarError.message);
     }
   };
 
@@ -190,30 +183,25 @@ export default function Register() {
   if (user) {
     return (
       <div className="auth-container">
-        <div className="auth-bg">
-          <div className="auth-decorations">
-            <div className="auth-deco" style={{ top: '10%', left: '10%', width: '80px', height: '80px' }}></div>
-            <div className="auth-deco" style={{ top: '60%', right: '15%', width: '60px', height: '60px' }}></div>
-          </div>
-        </div>
+        <div className="auth-bg"></div>
 
-        <div className="auth-card">
+        <div className="auth-card" style={{ maxWidth: '480px' }}>
           <div className="auth-header">
             <div className="auth-logo">M</div>
             <h1 className="auth-title">Ya hay una cuenta abierta</h1>
             <p className="auth-subtitle">
-              Estás dentro como {user.displayName}. Si quieres crear otra cuenta, primero cerramos esta sesión.
+              Estas dentro como {user.displayName}. Si quieres crear otra cuenta, primero cerramos esta sesion.
             </p>
           </div>
 
-          <div className="role-inline-summary">
+          <div className="role-inline-summary" style={{ marginBottom: '24px' }}>
             <span className="badge badge-secondary">
               <i className="fa-solid fa-user"></i> {user.roleLabel || 'Cuenta actual'}
             </span>
-            <p>{user.email}</p>
+            <p style={{ marginTop: '8px' }}>{user.email}</p>
           </div>
 
-          <div className="page-stack">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <button type="button" className="btn btn-primary" onClick={() => navigate('/')}>
               <i className="fa-solid fa-house"></i> Seguir con esta cuenta
             </button>
@@ -225,7 +213,7 @@ export default function Register() {
                 logout();
               }}
             >
-              <i className="fa-solid fa-user-plus"></i> Cerrar sesión y crear otra
+              <i className="fa-solid fa-user-plus"></i> Cerrar sesion y crear otra
             </button>
           </div>
         </div>
@@ -235,275 +223,338 @@ export default function Register() {
 
   return (
     <div className="auth-container">
-      <div className="auth-bg auth-bg-modern"></div>
+      <div className="auth-bg"></div>
 
-      <div className="auth-shell auth-shell-wide">
-        <section className="auth-hero-panel auth-hero-panel-compact">
-          <span className="auth-kicker auth-kicker-dark">Alta inicial</span>
-          <h1 className="auth-hero-title">Empieza con una cuenta que se sienta tuya.</h1>
+      <div className="auth-shell">
+        <section className="auth-hero-panel animate-in">
+          <span className="auth-kicker">Alta Inicial</span>
+          <h1 className="auth-hero-title">Crea tu cuenta en 3 pasos</h1>
           <p className="auth-hero-copy">
-            Define tu rol, tu foto y tus datos base. Después continúas con verificación real para entrar a la app.
+            Define tu rol, tus datos y verifica tu identidad. Un proceso rapido y seguro para unirte a la comunidad.
           </p>
 
-          <div className="auth-hero-grid auth-hero-grid-tall">
-            <div className="auth-hero-chip"><i className="fa-solid fa-user-group"></i><span>Rol claro</span></div>
-            <div className="auth-hero-chip"><i className="fa-solid fa-camera"></i><span>Foto desde el alta</span></div>
-            <div className="auth-hero-chip"><i className="fa-solid fa-id-card"></i><span>Identidad verificada</span></div>
+          <div className="auth-hero-grid">
+            <div className="auth-hero-chip">
+              <i className="fa-solid fa-user-tag"></i>
+              <span>Elige tu Rol</span>
+            </div>
+            <div className="auth-hero-chip">
+              <i className="fa-solid fa-user"></i>
+              <span>Tus Datos</span>
+            </div>
+            <div className="auth-hero-chip">
+              <i className="fa-solid fa-id-card"></i>
+              <span>Verificacion</span>
+            </div>
           </div>
         </section>
 
-        <section className="auth-card auth-card-wide auth-card-modern">
-        <div className="auth-header">
+        <section className="auth-card animate-scale">
           <div className="auth-brand-row">
-            <div className="auth-logo auth-logo-modern">M</div>
+            <div className="auth-logo">M</div>
             <div>
-              <span className="auth-kicker">Cuenta nueva</span>
-              <h1 className="auth-title" style={{ marginTop: '8px' }}>Crea tu cuenta</h1>
+              <span className="auth-kicker">Cuenta Nueva</span>
+              <h2 className="auth-title">Registro</h2>
             </div>
           </div>
-          <p className="auth-subtitle auth-subtitle-strong">
-            Primero elegimos el rol. Después pasas a selfie y documento uruguayo real.
-          </p>
-        </div>
 
-        {error && (
-          <div className="alert alert-error">
-            <i className="fa-solid fa-circle-exclamation"></i>
-            <span>{error}</span>
-          </div>
-        )}
-
-        {success && (
-          <div className="alert alert-success">
-            <i className="fa-solid fa-check-circle"></i>
-            <span>{success}</span>
-          </div>
-        )}
-        <div className="auth-stepper">
-          {[1, 2, 3].map((entry) => (
-            <button
-              key={entry}
-              type="button"
-              className={`auth-step-pill ${step === entry ? 'active' : step > entry ? 'done' : ''}`}
-              onClick={() => {
-                if (entry <= step) setStep(entry);
-              }}
-            >
-              <span>{entry}</span>
-              <strong>{entry === 1 ? 'Rol' : entry === 2 ? 'Datos' : 'Identidad'}</strong>
-            </button>
-          ))}
-        </div>
-
-        {step === 1 && (
-          <div className="auth-section auth-section-strong">
-            <div className="auth-section-title">
-              <strong>1. Elige tu rol</strong>
-              <span>Paso 1 de 3. Define cómo vas a usar la app.</span>
-            </div>
-
-            <div className="role-grid-cards">
-              {ROLE_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  type="button"
-                  className={`role-option-card ${role === option.value ? 'selected' : ''}`}
-                  onClick={() => setRole(option.value)}
-                >
-                  <span className="role-option-icon">
-                    <i className={option.icon}></i>
-                  </span>
-                  <div>
-                    <strong>{option.title}</strong>
-                    <p>{option.description}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-
-            <div className="role-inline-summary">
-              <span className="badge badge-secondary">
-                <i className={selectedRole.icon}></i> {selectedRole.title}
-              </span>
-              <p>{selectedRole.description}</p>
-            </div>
-          </div>
-        )}
-
-        {step === 2 && (
-          <div className="auth-section auth-section-strong">
-            <div className="auth-section-title">
-              <strong>2. Tus datos</strong>
-              <span>Paso 2 de 3. Deja lista la cuenta base.</span>
-            </div>
-
-            <div className="register-avatar-row">
-              <label className="register-avatar-picker">
-                {avatar ? (
-                  <img src={avatar} alt="Vista previa del perfil" className="register-avatar-preview" />
-                ) : (
-                  <span className="register-avatar-placeholder">
-                    <i className="fa-solid fa-camera"></i>
-                  </span>
-                )}
-                <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
-              </label>
-
-              <div className="register-avatar-copy">
-                <strong>Foto de perfil</strong>
-                <p>Se guarda desde el alta para que tu cuenta no arranque sin identidad visual.</p>
-                <span className={`upload-status ${avatar ? 'ready' : ''}`}>
-                  {avatarName || 'Tocar para subir foto'}
-                </span>
-              </div>
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Nombre completo</label>
-              <input
-                type="text"
-                className={`form-input ${name && name.length > 2 ? 'success' : ''}`}
-                placeholder="Cómo quieres que aparezca tu perfil?"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
+          {/* Stepper */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '24px' }}>
+            {[1, 2, 3].map((s) => (
+              <div
+                key={s}
+                style={{
+                  flex: 1,
+                  height: '4px',
+                  background: s <= step ? 'var(--gradient-primary)' : 'var(--bg-secondary)',
+                  borderRadius: '2px',
+                  transition: 'all var(--transition-base)',
+                }}
               />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Correo electrónico</label>
-              <input
-                type="email"
-                className={`form-input ${email && email.includes('@') ? 'success' : ''}`}
-                placeholder="tu@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Contrasena</label>
-              <div className="password-field-shell">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  className={`form-input password-field-input ${password ? (passwordStrength.level >= 2 ? 'success' : 'error') : ''}`}
-                  placeholder="Crea una contraseña segura"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <button type="button" className="password-visibility-btn" onClick={() => setShowPassword((value) => !value)}>
-                  <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                </button>
-              </div>
-              {password && (
-                <div className="password-strength">
-                  <div className={`strength-bar ${passwordStrength.level >= 1 ? 'active weak' : ''}`}></div>
-                  <div className={`strength-bar ${passwordStrength.level >= 2 ? 'active medium' : ''}`}></div>
-                  <div className={`strength-bar ${passwordStrength.level >= 3 ? 'active strong' : ''}`}></div>
-                </div>
-              )}
-              {password && (
-                <div className={`form-hint ${passwordStrength.level >= 2 ? 'success' : 'warning'}`}>
-                  <i className={`fa-solid ${passwordStrength.level >= 2 ? 'fa-check-circle' : 'fa-info-circle'}`}></i>
-                  {passwordStrength.text}
-                </div>
-              )}
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Confirmar contraseña</label>
-              <div className="password-field-shell">
-                <input
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  className={`form-input password-field-input ${confirm && password === confirm ? 'success' : confirm ? 'error' : ''}`}
-                  placeholder="Repite tu contraseña"
-                  value={confirm}
-                  onChange={(e) => setConfirm(e.target.value)}
-                  required
-                />
-                <button type="button" className="password-visibility-btn" onClick={() => setShowConfirmPassword((value) => !value)}>
-                  <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                </button>
-              </div>
-              {confirm && password !== confirm && (
-                <div className="form-error">
-                  <i className="fa-solid fa-circle-exclamation"></i>
-                  Las contraseñas no coinciden
-                </div>
-              )}
-            </div>
+            ))}
           </div>
-        )}
 
-        {step === 3 && (
-          <form onSubmit={handleSubmit} className="auth-form-shell">
-            <div className="auth-section auth-section-strong">
-              <div className="auth-section-title">
-                <strong>3. Identidad</strong>
-                <span>Paso 3 de 3. Aquí subes selfie y documento uruguayo antes de entrar.</span>
+          {error && (
+            <div className="alert alert-error">
+              <i className="fa-solid fa-circle-exclamation"></i>
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="alert alert-success">
+              <i className="fa-solid fa-check-circle"></i>
+              <span>{success}</span>
+            </div>
+          )}
+
+          {/* STEP 1: Role Selection */}
+          {step === 1 && (
+            <div className="auth-form-shell">
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Elige tu rol</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Como vas a usar Matebudy?</p>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Tipo de documento</label>
-                <div className="role-grid-cards compact">
-                  <button type="button" className={`role-option-card ${documentType === 'ci' ? 'selected' : ''}`} onClick={() => setDocumentType('ci')}>
-                    <span className="role-option-icon"><i className="fa-solid fa-id-card"></i></span>
-                    <div><strong>Cedula uruguaya</strong><p>Frente o foto clara del documento.</p></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+                {ROLE_OPTIONS.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => setRole(option.value)}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: '16px',
+                      padding: '16px',
+                      background: role === option.value ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)',
+                      border: role === option.value ? '2px solid var(--primary)' : '2px solid transparent',
+                      borderRadius: 'var(--radius-lg)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all var(--transition-fast)',
+                    }}
+                  >
+                    <div style={{
+                      width: '48px',
+                      height: '48px',
+                      borderRadius: 'var(--radius-md)',
+                      background: role === option.value ? 'var(--gradient-primary)' : 'var(--bg-card)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}>
+                      <i className={option.icon} style={{
+                        fontSize: '20px',
+                        color: role === option.value ? 'white' : 'var(--text-muted)'
+                      }}></i>
+                    </div>
+                    <div>
+                      <strong style={{ display: 'block', fontSize: '15px', marginBottom: '4px' }}>
+                        {option.title}
+                      </strong>
+                      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                        {option.description}
+                      </p>
+                    </div>
                   </button>
-                  <button type="button" className={`role-option-card ${documentType === 'passport' ? 'selected' : ''}`} onClick={() => setDocumentType('passport')}>
-                    <span className="role-option-icon"><i className="fa-solid fa-passport"></i></span>
-                    <div><strong>Pasaporte</strong><p>Numero tal cual aparece en el documento.</p></div>
-                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 2: Account Details */}
+          {step === 2 && (
+            <div className="auth-form-shell">
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Tus datos</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Completa tu informacion basica</p>
+              </div>
+
+              {/* Avatar Upload */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+                <label style={{
+                  width: '80px',
+                  height: '80px',
+                  borderRadius: 'var(--radius-full)',
+                  background: avatar ? 'transparent' : 'var(--bg-secondary)',
+                  border: '2px dashed var(--border-medium)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                }}>
+                  {avatar ? (
+                    <img src={avatar} alt="Avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : (
+                    <i className="fa-solid fa-camera" style={{ color: 'var(--text-muted)', fontSize: '24px' }}></i>
+                  )}
+                  <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+                </label>
+                <div>
+                  <strong style={{ display: 'block', fontSize: '14px', marginBottom: '4px' }}>Foto de perfil</strong>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{avatarName || 'Toca para subir una foto'}</p>
                 </div>
               </div>
 
               <div className="form-group">
-                <label className="form-label">Numero del documento</label>
+                <label className="form-label">Nombre completo</label>
                 <input
                   type="text"
-                  className={`form-input ${documentNumber.trim() ? 'success' : ''}`}
-                  placeholder={documentType === 'ci' ? 'Ejemplo: 12345678' : 'Ejemplo: AB123456'}
-                  value={documentNumber}
-                  onChange={(e) => setDocumentNumber(e.target.value)}
+                  className="form-input"
+                  placeholder="Como quieres que te llamen?"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
                 />
               </div>
 
-              <div className="upload-grid">
-                <div className="upload-card upload-card-file">
-                  <span className="upload-card-icon"><i className="fa-solid fa-camera-retro"></i></span>
-                  <strong>Selfie obligatoria</strong>
-                  <p>Selecciona una selfie desde cámara o galería.</p>
-                  <input type="file" accept="image/*" className="form-input" onChange={(e) => setSelfieFile(e.target.files?.[0] || null)} />
-                  <span className={`upload-status ${selfieFile ? 'ready' : ''}`}>{selfieFile ? selfieFile.name : 'Seleccionar selfie'}</span>
-                </div>
+              <div className="form-group">
+                <label className="form-label">Correo electronico</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="tu@email.com"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
 
-                <div className="upload-card upload-card-file">
-                  <span className="upload-card-icon"><i className="fa-solid fa-file-shield"></i></span>
-                  <strong>Foto o archivo del documento</strong>
-                  <p>Aquí subes la CI o pasaporte. Imagen o PDF.</p>
-                  <input type="file" accept="image/*,.pdf,application/pdf" className="form-input" onChange={(e) => setDocumentFile(e.target.files?.[0] || null)} />
-                  <span className={`upload-status ${documentFile ? 'ready' : ''}`}>{documentFile ? documentFile.name : 'Seleccionar documento'}</span>
+              <div className="form-group">
+                <label className="form-label">Contrasena</label>
+                <div className="password-field-shell">
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    className={`form-input password-field-input ${password ? (passwordState.valid ? 'success' : 'error') : ''}`}
+                    placeholder="Crea una contrasena segura"
+                    value={password}
+                    onChange={(event) => setPassword(event.target.value)}
+                  />
+                  <button type="button" className="password-visibility-btn" onClick={() => setShowPassword((value) => !value)}>
+                    <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                  </button>
+                </div>
+                {password && (
+                  <>
+                    <div className="password-strength">
+                      <div className={`strength-bar ${passwordState.level >= 1 ? 'active weak' : ''}`}></div>
+                      <div className={`strength-bar ${passwordState.level >= 2 ? 'active medium' : ''}`}></div>
+                      <div className={`strength-bar ${passwordState.level >= 3 ? 'active strong' : ''}`}></div>
+                    </div>
+                    <div className={`form-hint ${passwordState.valid ? 'success' : 'warning'}`}>
+                      <i className={`fa-solid ${passwordState.valid ? 'fa-check-circle' : 'fa-info-circle'}`}></i>
+                      {passwordState.valid ? 'Contrasena segura' : PASSWORD_RULE_HINT}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Confirmar contrasena</label>
+                <div className="password-field-shell">
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    className={`form-input password-field-input ${confirm && password === confirm ? 'success' : confirm ? 'error' : ''}`}
+                    placeholder="Repite tu contrasena"
+                    value={confirm}
+                    onChange={(event) => setConfirm(event.target.value)}
+                  />
+                  <button type="button" className="password-visibility-btn" onClick={() => setShowConfirmPassword((value) => !value)}>
+                    <i className={`fa-solid ${showConfirmPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                  </button>
+                </div>
+                {confirm && password !== confirm && (
+                  <div className="form-hint warning">
+                    <i className="fa-solid fa-circle-exclamation"></i>
+                    Las contrasenas no coinciden
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: Identity Verification */}
+          {step === 3 && (
+            <form onSubmit={handleSubmit} className="auth-form-shell">
+              <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Verificacion de identidad</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '14px' }}>Sube tu documento para activar tu cuenta</p>
+              </div>
+
+              {/* Document Type */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('ci')}
+                  style={{
+                    padding: '16px',
+                    background: documentType === 'ci' ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)',
+                    border: documentType === 'ci' ? '2px solid var(--primary)' : '2px solid transparent',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  <i className="fa-solid fa-id-card" style={{ fontSize: '24px', color: documentType === 'ci' ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '8px', display: 'block' }}></i>
+                  <strong style={{ display: 'block', fontSize: '13px' }}>Cedula</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Uruguaya</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDocumentType('passport')}
+                  style={{
+                    padding: '16px',
+                    background: documentType === 'passport' ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-secondary)',
+                    border: documentType === 'passport' ? '2px solid var(--primary)' : '2px solid transparent',
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    textAlign: 'center',
+                  }}
+                >
+                  <i className="fa-solid fa-passport" style={{ fontSize: '24px', color: documentType === 'passport' ? 'var(--primary)' : 'var(--text-muted)', marginBottom: '8px', display: 'block' }}></i>
+                  <strong style={{ display: 'block', fontSize: '13px' }}>Pasaporte</strong>
+                  <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Extranjero</span>
+                </button>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Numero de documento</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder={documentType === 'ci' ? 'Ej: 12345678' : 'Ej: AB123456'}
+                  value={documentNumber}
+                  onChange={(event) => setDocumentNumber(event.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+                <div style={{
+                  padding: '16px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius-md)',
+                  textAlign: 'center',
+                }}>
+                  <i className="fa-solid fa-camera" style={{ fontSize: '28px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}></i>
+                  <strong style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Selfie</strong>
+                  <input type="file" accept="image/*" style={{ fontSize: '10px' }} onChange={(event) => setSelfieFile(event.target.files?.[0] || null)} />
+                  {selfieFile && <span style={{ fontSize: '10px', color: 'var(--success)', display: 'block', marginTop: '4px' }}>{selfieFile.name}</span>}
+                </div>
+                <div style={{
+                  padding: '16px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: 'var(--radius-md)',
+                  textAlign: 'center',
+                }}>
+                  <i className="fa-solid fa-file-shield" style={{ fontSize: '28px', color: 'var(--text-muted)', marginBottom: '8px', display: 'block' }}></i>
+                  <strong style={{ display: 'block', fontSize: '13px', marginBottom: '4px' }}>Documento</strong>
+                  <input type="file" accept="image/*,.pdf" style={{ fontSize: '10px' }} onChange={(event) => setDocumentFile(event.target.files?.[0] || null)} />
+                  {documentFile && <span style={{ fontSize: '10px', color: 'var(--success)', display: 'block', marginTop: '4px' }}>{documentFile.name}</span>}
                 </div>
               </div>
 
-              <div className="info-note">
-                <i className="fa-solid fa-id-card"></i>
-                El acceso a la app se habilita solo cuando completes selfie + cédula uruguaya o pasaporte.
+              <div style={{
+                padding: '14px',
+                background: 'rgba(99, 102, 241, 0.1)',
+                borderRadius: 'var(--radius-md)',
+                fontSize: '13px',
+                color: 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '10px',
+                marginBottom: '16px',
+              }}>
+                <i className="fa-solid fa-info-circle" style={{ color: 'var(--primary)', marginTop: '2px' }}></i>
+                <span>Tu cuenta se activara cuando revisemos tu identidad. Esto suele tomar menos de 24 horas.</span>
               </div>
-
-              {role === 'monitor' && (
-                <div className="info-note">
-                  <i className="fa-solid fa-satellite-dish"></i>
-                  La cuenta Monitor no responde preguntas de onboarding. Al aprobarse la identidad entra directo al panel de monitoreo familiar.
-                </div>
-              )}
 
               <button
                 type="submit"
-                className="btn btn-primary btn-auth-main"
-                disabled={loading || !name || !email || !password || !confirm || password !== confirm || !documentNumber.trim() || !selfieFile || !documentFile}
+                className="btn btn-primary"
+                disabled={loading || !documentNumber.trim() || !selfieFile || !documentFile}
+                style={{ width: '100%' }}
               >
                 {loading ? (
                   <>
@@ -517,28 +568,39 @@ export default function Register() {
                   </>
                 )}
               </button>
-            </div>
-          </form>
-        )}
-
-        <div className="auth-wizard-actions">
-          <button type="button" className="pill-button pill-button-secondary" onClick={handlePrevStep} disabled={step === 1 || loading}>
-            <i className="fa-solid fa-arrow-left"></i> Atrás
-          </button>
-          {step < 3 && (
-            <button type="button" className="pill-button pill-button-primary" onClick={handleNextStep}>
-              Siguiente <i className="fa-solid fa-arrow-right"></i>
-            </button>
+            </form>
           )}
-        </div>
 
-        <div className="auth-footer-row">
-          <p className="auth-link-text">Ya tienes una cuenta?</p>
-          <button type="button" onClick={() => navigate('/login')} className="auth-link-btn">
-            Inicia sesión aquí
-          </button>
-        </div>
-      </section>
+          {/* Navigation Buttons */}
+          {step < 3 && (
+            <div style={{ display: 'flex', gap: '12px', marginTop: '24px' }}>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handlePrevStep}
+                disabled={step === 1}
+                style={{ flex: 1 }}
+              >
+                <i className="fa-solid fa-arrow-left"></i> Atras
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={handleNextStep}
+                style={{ flex: 1 }}
+              >
+                Siguiente <i className="fa-solid fa-arrow-right"></i>
+              </button>
+            </div>
+          )}
+
+          <div className="auth-footer-row">
+            <span className="auth-link-text">Ya tienes cuenta?</span>
+            <button type="button" onClick={() => navigate('/login')} className="auth-link-btn">
+              Inicia sesion
+            </button>
+          </div>
+        </section>
       </div>
     </div>
   );

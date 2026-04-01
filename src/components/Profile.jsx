@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
-import { getNotificationPermissionState, requestMatebudyNotifications } from '../notifications';
+import { forceAppReload, getNotificationPermissionState, requestMatebudyNotifications, sendMatebudyTestNotification } from '../notifications';
 import { apiUrl, publicFileUrl } from '../api';
 
 function fileToDataUrl(file) {
@@ -16,75 +16,61 @@ function fileToDataUrl(file) {
 export default function Profile() {
   const { user, logout, updateProfile } = useAuth();
   const location = useLocation();
+  const navigate = useNavigate();
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
+  const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
   const viewedProfile = location.state?.profile || null;
   const isReadOnly = Boolean(location.state?.readOnly && viewedProfile);
-  const sourceProfile = isReadOnly
-    ? {
-        displayName: viewedProfile.name,
-        roleLabel: viewedProfile.service || 'Perfil',
-        profileStatus: viewedProfile.activeProfile ? 'activo' : 'ocupado',
-        profession: viewedProfile.service || '',
-        about: viewedProfile.specialty || '',
-        tags: viewedProfile.specialty ? viewedProfile.specialty.split(',').map((tag) => tag.trim()).filter(Boolean) : [],
-        avatar: viewedProfile.avatar || '',
-        manualStatus: viewedProfile.manualStatus || 'en_línea',
-        profileAnswers: {
-          disponibilidad: viewedProfile.availability || 'Sin dato',
-          experiencia: `${viewedProfile.completedServices || 0} servicios completados`,
-          tarifa: viewedProfile.hourlyRate ? `$${viewedProfile.hourlyRate}/h` : 'Sin tarifa',
-        },
-      }
-    : user;
+
+  const sourceProfile = isReadOnly ? viewedProfile : user;
+
   const [profileForm, setProfileForm] = useState(() => ({
     displayName: sourceProfile?.displayName || '',
     profession: sourceProfile?.profession || '',
     about: sourceProfile?.about || '',
     tags: (sourceProfile?.tags || []).join(', '),
     avatar: sourceProfile?.avatar || '',
-    manualStatus: sourceProfile?.manualStatus || 'en_línea',
-    profileAnswers: sourceProfile?.profileAnswers || {},
+    manualStatus: sourceProfile?.manualStatus || 'en_linea',
   }));
-  const navigate = useNavigate();
-  const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
-  const [incomingMonitorRequests, setIncomingMonitorRequests] = useState([]);
-  const [monitorRequestsLoading, setMonitorRequestsLoading] = useState(false);
-  const STATUS_OPTIONS = [
-    { value: 'en_línea', label: 'En línea' },
-    { value: 'ocupado', label: 'Ocupado' },
-    { value: 'fuera_de_línea', label: 'Fuera de línea' },
-  ];
 
-  const profileAnswerEntries = useMemo(
-    () => Object.entries(profileForm.profileAnswers || {}),
-    [profileForm.profileAnswers],
-  );
+  const STATUS_OPTIONS = [
+    { value: 'en_linea', label: 'En linea', icon: 'fa-solid fa-circle-check' },
+    { value: 'ocupado', label: 'Ocupado', icon: 'fa-solid fa-clock' },
+    { value: 'fuera_de_linea', label: 'Ausente', icon: 'fa-solid fa-circle-pause' },
+  ];
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem('mate_token');
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, [user?.uid]);
 
+  const showToast = (message, timeout = 3000) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), timeout);
+  };
+
   const handleSave = async () => {
     if (isReadOnly) return;
+
     setSaving(true);
-    await updateProfile({
-      displayName: profileForm.displayName,
-      profession: profileForm.profession,
-      about: profileForm.about,
-      avatar: profileForm.avatar,
-      tags: profileForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
-      manualStatus: profileForm.manualStatus,
-      profileAnswers: profileForm.profileAnswers,
-      onboardingCompleted: true,
-      profileStatus: 'activo',
-    });
-    setSaving(false);
-    setEditing(false);
-    setToast('Perfil actualizado');
-    setTimeout(() => setToast(''), 3000);
+    try {
+      await updateProfile({
+        displayName: profileForm.displayName,
+        profession: profileForm.profession,
+        about: profileForm.about,
+        avatar: profileForm.avatar,
+        tags: profileForm.tags.split(',').map((tag) => tag.trim()).filter(Boolean),
+        manualStatus: profileForm.manualStatus,
+      });
+      setEditing(false);
+      showToast('Perfil actualizado correctamente');
+    } catch (error) {
+      showToast(error.message || 'No se pudo guardar el perfil');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -103,452 +89,304 @@ export default function Profile() {
     setProfileForm((prev) => ({ ...prev, avatar }));
   };
 
-  const handleEnableNotifications = async () => {
-    const result = await requestMatebudyNotifications();
-    setNotificationPermission(result);
-    setToast(
-      result === 'granted'
-        ? 'Notificaciones activadas'
-        : result === 'denied'
-          ? 'Las notificaciones quedaron bloqueadas'
-          : 'Tu dispositivo no permite notificaciones desde aquí',
-    );
-    setTimeout(() => setToast(''), 3000);
-  };
-
   const handleQuickStatus = async (manualStatus) => {
     if (isReadOnly) return;
-
     setProfileForm((prev) => ({ ...prev, manualStatus }));
     setSaving(true);
     try {
-      await updateProfile({
-        manualStatus,
-      });
-      setToast('Estado actualizado');
+      await updateProfile({ manualStatus });
+      showToast('Estado actualizado');
     } catch (error) {
-      setToast(error.message || 'No se pudo actualizar el estado');
+      showToast(error.message || 'No se pudo actualizar');
     } finally {
       setSaving(false);
-      setTimeout(() => setToast(''), 2500);
     }
   };
 
-  const updateAnswer = (key, value) => {
-    setProfileForm((prev) => ({
-      ...prev,
-      profileAnswers: {
-        ...prev.profileAnswers,
-        [key]: value,
-      },
-    }));
+  const handleNotifications = async () => {
+    const result = await requestMatebudyNotifications();
+    setNotificationPermission(result);
+    showToast(result === 'granted' ? 'Notificaciones activadas' : 'Permiso denegado');
   };
 
-  useEffect(() => {
-    if (isReadOnly || !user?.uid) return undefined;
-
-    let cancelled = false;
-
-    const loadMonitorRequests = async () => {
-      setMonitorRequestsLoading(true);
-      try {
-        const response = await fetch(apiUrl('/api/users/monitor-link-requests'), {
-          headers: {
-            ...authHeaders,
-          },
-          credentials: 'include',
-        });
-        const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las solicitudes de monitoreo');
-        if (!cancelled) {
-          setIncomingMonitorRequests(data.incoming || []);
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setToast(error.message);
-        }
-      } finally {
-        if (!cancelled) {
-          setMonitorRequestsLoading(false);
-        }
-      }
-    };
-
-    void loadMonitorRequests();
-    return () => {
-      cancelled = true;
-    };
-  }, [authHeaders, isReadOnly, user?.uid]);
-
-  const respondToMonitorRequest = async (requestId, action) => {
-    if (isReadOnly) return;
-
-    try {
-      const response = await fetch(apiUrl(`/api/users/monitor-link-requests/${requestId}/${action}`), {
-        method: 'POST',
-        headers: {
-          ...authHeaders,
-        },
-        credentials: 'include',
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'No se pudo responder la solicitud');
-
-      setIncomingMonitorRequests((prev) => prev.filter((entry) => entry.id !== requestId));
-      setToast(action === 'approve' ? 'Solicitud de monitoreo aprobada' : 'Solicitud de monitoreo rechazada');
-      setTimeout(() => setToast(''), 2500);
-    } catch (error) {
-      setToast(error.message || 'No se pudo responder la solicitud');
-      setTimeout(() => setToast(''), 2500);
-    }
-  };
-
-  const currentAvatar = (() => {
-    const value = profileForm.avatar || sourceProfile?.avatar || '';
-    return value.startsWith('/uploads') ? publicFileUrl(value) : value;
-  })();
-  const profileStats = isReadOnly
-    ? [
-        { icon: 'fa-solid fa-briefcase', value: viewedProfile?.completedServices || 0, label: 'Servicios registrados', color: 'var(--success)' },
-        { icon: 'fa-solid fa-star', value: viewedProfile?.rating ? String(viewedProfile.rating) : 'Sin datos', label: viewedProfile?.rating ? 'Calificacion visible' : 'Sin valoraciones', color: 'var(--accent)' },
-        { icon: 'fa-solid fa-heart', value: viewedProfile?.activeProfile ? 'Activo' : 'Pausado', label: 'Estado del perfil', color: 'var(--danger)' },
-      ]
-    : [
-        { icon: 'fa-solid fa-briefcase', value: '0', label: 'Servicios completados', color: 'var(--success)' },
-        { icon: 'fa-solid fa-star', value: 'Sin datos', label: 'Sin valoraciones todavía', color: 'var(--accent)' },
-        { icon: 'fa-solid fa-heart', value: '0', label: 'Apoyos guardados', color: 'var(--danger)' },
-      ];
+  const currentAvatar = publicFileUrl(profileForm.avatar || sourceProfile?.avatar || '') || profileForm.avatar;
 
   return (
-    <div className="app-scroll" style={{ minHeight: '100vh', padding: '0 0 110px' }}>
-      {toast && <div className="toast toast-success">{toast}</div>}
+    <div className="profile-shell">
+      {toast && <div className="toast">{toast}</div>}
 
-      <div className="page-shell page-stack">
-        <div className="hero-banner profile-hero">
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            <div className="profile-avatar-shell">
-              {currentAvatar ? (
-                <img src={currentAvatar} alt={profileForm.displayName || 'Perfil'} className="profile-avatar-image" />
-              ) : (
-                <div className="profile-avatar-fallback">
-                  {(profileForm.displayName || user?.displayName || '?').charAt(0).toUpperCase()}
-                </div>
-              )}
-
-              {editing && !isReadOnly && (
-                <label className="profile-avatar-action">
-                  <i className="fa-solid fa-camera"></i>
-                  <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
-                </label>
-              )}
+      {/* Header Card */}
+      <div className="profile-header animate-in">
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          {currentAvatar ? (
+            <img src={currentAvatar} alt="Perfil" className="profile-avatar" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div className="profile-avatar">
+              {(profileForm.displayName || user?.displayName || '?').charAt(0).toUpperCase()}
             </div>
+          )}
 
-            {editing && !isReadOnly ? (
-              <input
-                type="text"
-                value={profileForm.displayName}
-                onChange={(e) => setProfileForm((prev) => ({ ...prev, displayName: e.target.value }))}
-                className="profile-hero-input"
-              />
-            ) : (
-              <h2 style={{ fontSize: '28px', fontWeight: 800, color: 'white', marginBottom: '8px' }}>
-                {sourceProfile?.displayName || 'Usuario'}
-              </h2>
-            )}
-
-            <p style={{ color: 'rgba(255,255,255,0.82)', fontSize: '14px', marginBottom: '16px' }}>{sourceProfile?.profession || sourceProfile?.roleLabel}</p>
-
-            <div className="info-chip-row" style={{ justifyContent: 'center' }}>
-              <span className="badge badge-accent">{sourceProfile?.roleLabel}</span>
-              <span className="badge badge-secondary">{sourceProfile?.profileStatus}</span>
-              <span className="badge badge-primary">Estado manual: {(isReadOnly ? sourceProfile?.manualStatus : profileForm.manualStatus).replaceAll('_', ' ')}</span>
-            </div>
-
-            {!isReadOnly && (
-              <div className="profile-status-quickbar">
-                {STATUS_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`profile-status-chip ${(profileForm.manualStatus || sourceProfile?.manualStatus) === option.value ? 'active' : ''}`}
-                    onClick={() => void handleQuickStatus(option.value)}
-                    disabled={saving}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {!isReadOnly && (
+            <label style={{
+              position: 'absolute',
+              bottom: '4px',
+              right: '4px',
+              width: '40px',
+              height: '40px',
+              borderRadius: 'var(--radius-full)',
+              background: 'var(--gradient-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              border: '3px solid white',
+              boxShadow: 'var(--shadow-md)',
+            }}>
+              <i className="fa-solid fa-camera" style={{ color: 'white', fontSize: '16px' }}></i>
+              <input type="file" accept="image/*" hidden onChange={handleAvatarChange} />
+            </label>
+          )}
         </div>
 
-        <div className="mini-stat-grid">
-          <div className="mini-stat-card">
-            <strong>Perfil editable</strong>
-            <span>{isReadOnly ? 'Estás viendo una vista pública del perfil seleccionado.' : 'Foto, descripción, tags y respuestas quedan guardadas para la próxima vez que entres.'}</span>
+        {editing && !isReadOnly ? (
+          <input
+            type="text"
+            value={profileForm.displayName}
+            onChange={(event) => setProfileForm((prev) => ({ ...prev, displayName: event.target.value }))}
+            style={{
+              textAlign: 'center',
+              fontSize: '24px',
+              fontWeight: 700,
+              border: 'none',
+              borderBottom: '2px solid var(--primary)',
+              background: 'transparent',
+              color: 'var(--text-primary)',
+              marginTop: '16px',
+              padding: '8px',
+            }}
+          />
+        ) : (
+          <h2 className="profile-name" style={{ marginTop: '16px' }}>
+            {sourceProfile?.displayName || 'Usuario'}
+          </h2>
+        )}
+
+        <p className="profile-role">{sourceProfile?.profession || sourceProfile?.roleLabel || 'Perfil'}</p>
+
+        <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '16px', flexWrap: 'wrap' }}>
+          <span className="badge badge-primary">{sourceProfile?.roleLabel}</span>
+          <span className="badge badge-secondary">
+            {(profileForm.manualStatus || sourceProfile?.manualStatus || 'en_linea').replace(/_/g, ' ')}
+          </span>
+        </div>
+
+        {/* Quick Status */}
+        {!isReadOnly && (
+          <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' }}>
+            {STATUS_OPTIONS.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => void handleQuickStatus(option.value)}
+                disabled={saving}
+                style={{
+                  padding: '10px 18px',
+                  borderRadius: 'var(--radius-full)',
+                  border: profileForm.manualStatus === option.value ? '2px solid var(--primary)' : '2px solid var(--border-light)',
+                  background: profileForm.manualStatus === option.value ? 'rgba(99, 102, 241, 0.1)' : 'var(--bg-card)',
+                  color: profileForm.manualStatus === option.value ? 'var(--primary)' : 'var(--text-secondary)',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: saving ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  transition: 'all var(--transition-fast)',
+                }}
+              >
+                <i className={option.icon}></i>
+                {option.label}
+              </button>
+            ))}
           </div>
-          <div className="mini-stat-card">
-            <strong>{sourceProfile?.roleLabel || 'Cuenta'}</strong>
-            <span>{isReadOnly ? 'Puedes volver al mapa o iniciar un chat con esta persona.' : 'Puedes ajustar tu presentación sin perder lo ya completado.'}</span>
-          </div>
+        )}
+      </div>
+
+      {/* Stats */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '24px' }}>
+        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
+          <i className="fa-solid fa-briefcase" style={{ fontSize: '24px', color: 'var(--success)', marginBottom: '8px' }}></i>
+          <strong style={{ display: 'block', fontSize: '20px', fontWeight: 700 }}>0</strong>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Servicios</span>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
+          <i className="fa-solid fa-star" style={{ fontSize: '24px', color: 'var(--accent)', marginBottom: '8px' }}></i>
+          <strong style={{ display: 'block', fontSize: '20px', fontWeight: 700 }}>-</strong>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Rating</span>
+        </div>
+        <div className="card" style={{ textAlign: 'center', padding: '16px' }}>
+          <i className="fa-solid fa-heart" style={{ fontSize: '24px', color: 'var(--secondary)', marginBottom: '8px' }}></i>
+          <strong style={{ display: 'block', fontSize: '20px', fontWeight: 700 }}>0</strong>
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Apoyos</span>
+        </div>
+      </div>
+
+      {/* Edit/View Sections */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fa-solid fa-user-pen" style={{ color: 'var(--primary)' }}></i>
+            Informacion personal
+          </h3>
+          {!isReadOnly && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setEditing(!editing)}
+              disabled={saving}
+              style={{ padding: '8px 16px', fontSize: '13px' }}
+            >
+              <i className={`fa-solid ${editing ? 'fa-check' : 'fa-pen'}`}></i>
+              {editing ? 'Listo' : 'Editar'}
+            </button>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          <div className="neu-card-sm">
-            <h3 className="profile-section-title">
-              <i className="fa-solid fa-user-pen" style={{ color: 'var(--primary)' }}></i>
-              Informacion personal
-            </h3>
-
-            <div className="profile-edit-grid">
-              <div className="form-group">
-                <label className="form-label">Nombre</label>
-                {editing && !isReadOnly ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileForm.displayName}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, displayName: e.target.value }))}
-                  />
-                ) : (
-                  <span className="profile-value">{sourceProfile?.displayName}</span>
-                )}
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Profesion o enfoque</label>
-                {editing && !isReadOnly ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileForm.profession}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, profession: e.target.value }))}
-                    placeholder="Ejemplo: acompañante, tutor, técnico"
-                  />
-                ) : (
-                  <span className="profile-value">{sourceProfile?.profession || 'Sin definir'}</span>
-                )}
-              </div>
-
-              {!isReadOnly && (
-                <div className="form-group">
-                  <label className="form-label">Cómo quieres aparecer</label>
-                  {editing ? (
-                    <select
-                      className="form-input"
-                      value={profileForm.manualStatus}
-                      onChange={(e) => setProfileForm((prev) => ({ ...prev, manualStatus: e.target.value }))}
-                    >
-                      <option value="en_línea">En línea</option>
-                      <option value="ocupado">Ocupado</option>
-                      <option value="fuera_de_línea">Fuera de línea</option>
-                    </select>
-                  ) : (
-                    <span className="profile-value">{profileForm.manualStatus.replaceAll('_', ' ')}</span>
-                  )}
-                </div>
-              )}
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Sobre mí</label>
-                {editing && !isReadOnly ? (
-                  <textarea
-                    className="form-input textarea-field"
-                    rows={4}
-                    value={profileForm.about}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, about: e.target.value }))}
-                    placeholder="Cuenta un poco cómo trabajas o como acompañías."
-                  />
-                ) : (
-                  <p className="profile-description">{sourceProfile?.about || 'Todavia no agregaste una descripción.'}</p>
-                )}
-              </div>
-
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label className="form-label">Tags del perfil</label>
-                {editing && !isReadOnly ? (
-                  <input
-                    type="text"
-                    className="form-input"
-                    value={profileForm.tags}
-                    onChange={(e) => setProfileForm((prev) => ({ ...prev, tags: e.target.value }))}
-                    placeholder="compañía, trámites, apoyo emocional, estudio"
-                  />
-                ) : (
-                  <div className="info-chip-row">
-                    {(sourceProfile?.tags || []).length ? sourceProfile.tags.map((tag) => (
-                      <span key={tag} className="badge badge-primary">{tag}</span>
-                    )) : <span className="profile-value">Aun no agregaste tags</span>}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="neu-card-sm">
-            <h3 className="profile-section-title">
-              <i className="fa-solid fa-clipboard-question" style={{ color: 'var(--primary)' }}></i>
-              Respuestas del perfil
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {profileAnswerEntries.map(([key, value]) => (
-                <div key={key} className="profile-answer-card">
-                  <strong>{key}</strong>
-                  {editing && !isReadOnly ? (
-                    <textarea
-                      className="form-input textarea-field"
-                      rows={3}
-                      value={value}
-                      onChange={(e) => updateAnswer(key, e.target.value)}
-                    />
-                  ) : (
-                    <span>{value}</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="neu-card-sm">
-            <h3 className="profile-section-title">
-              <i className="fa-solid fa-chart-line" style={{ color: 'var(--primary)' }}></i>
-              Tu resumen
-            </h3>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {profileStats.map((stat, index) => (
-                <div key={index} className="profile-stat-card">
-                  <span className="profile-stat-icon" style={{ color: stat.color }}>
-                    <i className={stat.icon}></i>
-                  </span>
-                  <div>
-                    <span style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-dark)', display: 'block' }}>{stat.value}</span>
-                    <span style={{ fontSize: '12px', color: 'var(--text-medium)' }}>{stat.label}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {!isReadOnly && (
-            <div className="neu-card-sm">
-              <h3 className="profile-section-title">
-                <i className="fa-solid fa-user-shield" style={{ color: 'var(--primary)' }}></i>
-                Solicitudes de monitoreo
-              </h3>
-              <p className="profile-description">
-                Ninguna cuenta puede acceder a tu ubicacion, bateria o presencia sin tu aprobacion explicita.
-              </p>
-              {monitorRequestsLoading ? (
-                <div className="info-note" style={{ marginTop: '12px' }}>
-                  <i className="fa-solid fa-spinner fa-spin"></i> Cargando solicitudes...
-                </div>
-              ) : incomingMonitorRequests.length ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-                  {incomingMonitorRequests.map((request) => (
-                    <div key={request.id} className="profile-answer-card">
-                      <strong>{request.user?.name || 'Monitor'}</strong>
-                      <span>{request.user?.profession || request.user?.role || 'Cuenta monitor'}</span>
-                      {request.note && <span>{request.note}</span>}
-                      <div className="info-chip-row" style={{ marginTop: '10px' }}>
-                        <button type="button" className="pill-button pill-button-primary" onClick={() => void respondToMonitorRequest(request.id, 'approve')}>
-                          Aprobar
-                        </button>
-                        <button type="button" className="pill-button pill-button-secondary" onClick={() => void respondToMonitorRequest(request.id, 'reject')}>
-                          Rechazar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="info-note" style={{ marginTop: '12px' }}>
-                  <i className="fa-solid fa-shield"></i> No tienes solicitudes pendientes.
-                </div>
-              )}
-            </div>
-          )}
-
-          {!isReadOnly && (
-            <div className="neu-card-sm">
-              <h3 className="profile-section-title">
-                <i className="fa-solid fa-bell" style={{ color: 'var(--primary)' }}></i>
-                Notificaciones
-              </h3>
-              <p className="profile-description">
-                Las pedimos cuando tú las activas para cuidar la experiencia. Asi puedes recibir avisos de actividad importante en conocidos y perfiles monitoreados.
-              </p>
-              <div className="info-chip-row" style={{ marginTop: '12px' }}>
-                <span className={`badge ${notificationPermission === 'granted' ? 'badge-primary' : 'badge-secondary'}`}>
-                  {notificationPermission === 'granted'
-                    ? 'Activadas'
-                    : notificationPermission === 'denied'
-                      ? 'Bloqueadas'
-                      : notificationPermission === 'unsupported'
-                        ? 'No disponibles aquí'
-                        : 'Pendientes'}
-                </span>
-                {notificationPermission !== 'granted' && (
-                  <button type="button" className="pill-button pill-button-primary" onClick={handleEnableNotifications}>
-                    <i className="fa-solid fa-bell"></i> Activar notificaciones
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          <div className="info-chip-row">
-            {editing ? (
-              <>
-                <button type="button" className="pill-button pill-button-primary" onClick={handleSave} disabled={saving}>
-                  <i className={`fa-solid ${saving ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
-                  {saving ? 'Guardando...' : 'Guardar cambios'}
-                </button>
-                <button
-                  type="button"
-                  className="pill-button pill-button-secondary"
-                  onClick={() => {
-                    setEditing(false);
-                    setProfileForm({
-                      displayName: sourceProfile?.displayName || '',
-                      profession: sourceProfile?.profession || '',
-                      about: sourceProfile?.about || '',
-                      tags: (sourceProfile?.tags || []).join(', '),
-                      avatar: sourceProfile?.avatar || '',
-                      manualStatus: sourceProfile?.manualStatus || 'en_línea',
-                      profileAnswers: sourceProfile?.profileAnswers || {},
-                    });
-                  }}
-                >
-                  <i className="fa-solid fa-rotate-left"></i> Cancelar
-                </button>
-              </>
-            ) : !isReadOnly ? (
-              <button type="button" className="pill-button pill-button-primary" onClick={() => setEditing(true)}>
-                <i className="fa-solid fa-pen"></i> Editar perfil completo
-              </button>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Profesion o enfoque</label>
+            {editing && !isReadOnly ? (
+              <input
+                type="text"
+                className="form-input"
+                value={profileForm.profession}
+                onChange={(event) => setProfileForm((prev) => ({ ...prev, profession: event.target.value }))}
+                placeholder="Ej: Psicologo, Acompanante terapeutico..."
+              />
             ) : (
-              <>
-                <button
-                  type="button"
-                  className="pill-button pill-button-primary"
-                  onClick={() => navigate('/chat', { state: { provider: viewedProfile } })}
-                >
-                  <i className="fa-solid fa-comments"></i> Ir al chat
-                </button>
-                <button type="button" className="pill-button pill-button-secondary" onClick={() => navigate(location.state?.from || '/mapa')}>
-                  <i className="fa-solid fa-arrow-left"></i> Volver
-                </button>
-              </>
+              <p style={{ color: 'var(--text-primary)', fontSize: '15px' }}>{sourceProfile?.profession || 'Sin especificar'}</p>
             )}
           </div>
 
-          <button onClick={handleLogout} className="btn-danger">
-            <i className={`fa-solid ${isReadOnly ? 'fa-arrow-left' : 'fa-right-from-bracket'}`}></i> {isReadOnly ? 'Volver al mapa' : 'Cerrar sesión'}
-          </button>
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Sobre mi</label>
+            {editing && !isReadOnly ? (
+              <textarea
+                className="form-input"
+                rows={4}
+                value={profileForm.about}
+                onChange={(event) => setProfileForm((prev) => ({ ...prev, about: event.target.value }))}
+                placeholder="Cuentale a la comunidad quien eres..."
+              />
+            ) : (
+              <p style={{ color: 'var(--text-primary)', fontSize: '15px', lineHeight: 1.6 }}>{sourceProfile?.about || 'Sin descripcion'}</p>
+            )}
+          </div>
+
+          <div>
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Tags (separados por coma)</label>
+            {editing && !isReadOnly ? (
+              <input
+                type="text"
+                className="form-input"
+                value={profileForm.tags}
+                onChange={(event) => setProfileForm((prev) => ({ ...prev, tags: event.target.value }))}
+                placeholder="Ej: ansiedad, depresion, apoyo emocional"
+              />
+            ) : (
+              <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                {(sourceProfile?.tags || []).length > 0 ? (
+                  sourceProfile.tags.map((tag, i) => (
+                    <span key={i} className="badge badge-secondary">{tag}</span>
+                  ))
+                ) : (
+                  <span style={{ color: 'var(--text-muted)', fontSize: '14px' }}>Sin tags</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
+
+        {editing && !isReadOnly && (
+          <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={handleSave}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              <i className={`fa-solid ${saving ? 'fa-spinner fa-spin' : 'fa-check'}`}></i>
+              {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setEditing(false)}
+              disabled={saving}
+              style={{ flex: 1 }}
+            >
+              Cancelar
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* Settings */}
+      {!isReadOnly && (
+        <div className="card" style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <i className="fa-solid fa-gear" style={{ color: 'var(--text-muted)' }}></i>
+            Configuracion
+          </h3>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleNotifications}
+              style={{ justifyContent: 'flex-start', padding: '14px 18px' }}
+            >
+              <i className="fa-solid fa-bell" style={{ color: 'var(--primary)' }}></i>
+              <span style={{ flex: 1, textAlign: 'left' }}>Notificaciones</span>
+              <span className="badge badge-secondary">{notificationPermission === 'granted' ? 'Activadas' : 'Desactivadas'}</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => window.dispatchEvent(new Event('matebudy:check-update'))}
+              style={{ justifyContent: 'flex-start', padding: '14px 18px' }}
+            >
+              <i className="fa-solid fa-arrow-rotate-right" style={{ color: 'var(--accent)' }}></i>
+              <span style={{ flex: 1, textAlign: 'left' }}>Buscar actualizaciones</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={handleLogout}
+              style={{ justifyContent: 'flex-start', padding: '14px 18px', borderColor: 'var(--danger)', color: 'var(--danger)' }}
+            >
+              <i className="fa-solid fa-right-from-bracket" style={{ color: 'var(--danger)' }}></i>
+              <span style={{ flex: 1, textAlign: 'left' }}>Cerrar sesion</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Back Button for ReadOnly */}
+      {isReadOnly && (
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={() => navigate(location.state?.from || '/mapa')}
+          style={{ width: '100%' }}
+        >
+          <i className="fa-solid fa-arrow-left"></i>
+          Volver
+        </button>
+      )}
     </div>
   );
 }

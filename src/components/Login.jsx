@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
+import { PASSWORD_RULE_HINT, validatePassword } from '../passwordRules';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -15,33 +16,44 @@ export default function Login() {
   const navigate = useNavigate();
   const { login, resetPassword } = useAuth();
 
+  const recoveryPasswordState = useMemo(
+    () => validatePassword(recoveryPassword),
+    [recoveryPassword],
+  );
+
   useEffect(() => {
     if (error) setError('');
   }, [email, password, recoveryEmail, recoveryPassword]);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const handleSubmit = async (event) => {
+    event.preventDefault();
     setError('');
     setLoading(true);
 
     try {
       await login(email, password);
       navigate('/');
-    } catch (err) {
-      const message = String(err?.message || '').trim();
+    } catch (loginError) {
+      const message = String(loginError?.message || '').trim();
       setError(
         /credenciales inv/i.test(message)
-          ? 'Credenciales inválidas. Revisa tu correo y tu contraseña.'
-          : message || 'No se pudo iniciar sesión. Verifica el backend y vuelve a intentar.',
+          ? 'Credenciales invalidas. Revisa tu correo y tu contrasena.'
+          : message || 'No se pudo iniciar sesion. Verifica el backend y vuelve a intentar.',
       );
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
-  const handleRecovery = async (e) => {
-    e.preventDefault();
+  const handleRecovery = async (event) => {
+    event.preventDefault();
     setError('');
+
+    if (!recoveryPasswordState.valid) {
+      setError(recoveryPasswordState.message || PASSWORD_RULE_HINT);
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -51,52 +63,56 @@ export default function Login() {
       setPassword(recoveryPassword);
       setEmail(recoveryEmail);
       setError('Contrasena actualizada. Ahora puedes entrar con la nueva clave.');
-    } catch (err) {
-      setError(err.message || 'No se pudo actualizar la contraseña');
+    } catch (recoveryError) {
+      setError(recoveryError.message || 'No se pudo actualizar la contrasena');
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   return (
     <div className="auth-container">
-      <div className="auth-bg auth-bg-modern"></div>
+      <div className="auth-bg"></div>
 
-      <div className="auth-shell auth-shell-login">
-        <section className="auth-hero-panel">
-          <span className="auth-kicker auth-kicker-dark">MateBudy</span>
-          <h1 className="auth-hero-title">Una app que acompaña de verdad.</h1>
+      <div className="auth-shell">
+        <section className="auth-hero-panel animate-in">
+          <span className="auth-kicker">Bienvenido a Matebudy</span>
+          <h1 className="auth-hero-title">
+            Tu espacio seguro de conexion y apoyo
+          </h1>
           <p className="auth-hero-copy">
-            Conversaciones, monitoreo y comunidad en una experiencia clara, moderna y centrada en personas.
+            Unete a una comunidad que cuida de ti. Conversaciones reales,
+            monitoreo responsable y acompanamiento cuando mas lo necesitas.
           </p>
 
           <div className="auth-hero-grid">
             <div className="auth-hero-chip">
-              <i className="fa-solid fa-sparkles"></i>
-              <span>Entrada rapida</span>
+              <i className="fa-solid fa-bolt"></i>
+              <span>Acceso Rapido</span>
             </div>
             <div className="auth-hero-chip">
               <i className="fa-solid fa-comments"></i>
-              <span>Chats listos</span>
+              <span>Chat Seguro</span>
             </div>
             <div className="auth-hero-chip">
               <i className="fa-solid fa-shield-heart"></i>
-              <span>Identidad cuidada</span>
+              <span>Identidad Verificada</span>
             </div>
           </div>
         </section>
 
-        <section className="auth-card auth-card-login auth-card-modern">
+        <section className="auth-card animate-scale">
           <div className="auth-brand-row">
-            <div className="auth-logo auth-logo-modern">M</div>
+            <div className="auth-logo">M</div>
             <div>
-              <span className="auth-kicker">Acceso</span>
-              <h2 className="auth-title" style={{ marginTop: '8px' }}>Vuelve a entrar</h2>
+              <span className="auth-kicker">Iniciar Sesion</span>
+              <h2 className="auth-title">Vuelve a entrar</h2>
             </div>
           </div>
 
-          <p className="auth-subtitle auth-subtitle-strong">
-            Entra a tu cuenta para seguir justo donde lo dejaste, sin perder tus conversaciones ni tu perfil.
+          <p className="auth-subtitle">
+            Ingresa tus credenciales para continuar donde lo dejaste.
+            Tus conversaciones y perfil te estan esperando.
           </p>
 
           {error && (
@@ -107,46 +123,44 @@ export default function Login() {
           )}
 
           <form onSubmit={handleSubmit} className="auth-form-shell">
-            <div className="auth-input-block">
-              <div className="form-group">
-                <label className="form-label">Correo electrónico</label>
+            <div className="form-group">
+              <label className="form-label">Correo electronico</label>
+              <input
+                type="email"
+                className={`form-input ${email && email.includes('@') ? 'success' : ''}`}
+                placeholder="tu@email.com"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">Contrasena</label>
+              <div className="password-field-shell">
                 <input
-                  type="email"
-                  className={`form-input ${email && email.includes('@') ? 'success' : ''}`}
-                  placeholder="tu@email.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  type={showPassword ? 'text' : 'password'}
+                  className="form-input password-field-input"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
                   required
                 />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Contrasena</label>
-                <div className="password-field-shell">
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input password-field-input"
-                    placeholder="Tu clave segura"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button type="button" className="password-visibility-btn" onClick={() => setShowPassword((value) => !value)}>
-                    <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
-                  </button>
-                </div>
+                <button type="button" className="password-visibility-btn" onClick={() => setShowPassword((value) => !value)}>
+                  <i className={`fa-solid ${showPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
+                </button>
               </div>
             </div>
 
             <button type="button" className="ghost-link-button" onClick={() => setShowRecovery((value) => !value)}>
-              {showRecovery ? 'Cerrar recuperación' : 'Olvidé mi contraseña'}
+              {showRecovery ? 'Cerrar recuperacion' : 'Olvide mi contrasena'}
             </button>
 
             {showRecovery && (
-              <div className="auth-section auth-section-soft">
+              <div className="auth-section">
                 <div className="auth-section-title">
                   <strong>Recuperar acceso</strong>
-                  <span>Escribe tu correo y define una nueva contraseña.</span>
+                  <span>Escribe tu correo y define una nueva contrasena.</span>
                 </div>
 
                 <div className="auth-form-shell">
@@ -157,32 +171,47 @@ export default function Login() {
                       className="form-input"
                       placeholder="tu@email.com"
                       value={recoveryEmail}
-                      onChange={(e) => setRecoveryEmail(e.target.value)}
+                      onChange={(event) => setRecoveryEmail(event.target.value)}
                       required
                     />
                   </div>
 
                   <div className="form-group">
-                    <label className="form-label">Nueva contraseña</label>
+                    <label className="form-label">Nueva contrasena</label>
                     <div className="password-field-shell">
                       <input
                         type={showRecoveryPassword ? 'text' : 'password'}
-                        className="form-input password-field-input"
-                        placeholder="Nueva contraseña"
+                        className={`form-input password-field-input ${recoveryPassword ? (recoveryPasswordState.valid ? 'success' : 'error') : ''}`}
+                        placeholder="Nueva contrasena"
                         value={recoveryPassword}
-                        onChange={(e) => setRecoveryPassword(e.target.value)}
-                        minLength={6}
+                        onChange={(event) => setRecoveryPassword(event.target.value)}
                         required
                       />
                       <button type="button" className="password-visibility-btn" onClick={() => setShowRecoveryPassword((value) => !value)}>
                         <i className={`fa-solid ${showRecoveryPassword ? 'fa-eye-slash' : 'fa-eye'}`}></i>
                       </button>
                     </div>
+                    {recoveryPassword && (
+                      <div className="password-strength">
+                        <div className={`strength-bar ${recoveryPasswordState.level >= 1 ? 'active weak' : ''}`}></div>
+                        <div className={`strength-bar ${recoveryPasswordState.level >= 2 ? 'active medium' : ''}`}></div>
+                        <div className={`strength-bar ${recoveryPasswordState.level >= 3 ? 'active strong' : ''}`}></div>
+                      </div>
+                    )}
+                    <div className={`form-hint ${recoveryPasswordState.valid ? 'success' : 'warning'}`}>
+                      <i className={`fa-solid ${recoveryPasswordState.valid ? 'fa-check-circle' : 'fa-info-circle'}`}></i>
+                      {recoveryPassword ? (recoveryPasswordState.valid ? 'Contrasena segura' : PASSWORD_RULE_HINT) : PASSWORD_RULE_HINT}
+                    </div>
                   </div>
 
-                  <button type="button" className="pill-button pill-button-primary" onClick={handleRecovery} disabled={loading || !recoveryEmail || recoveryPassword.length < 6}>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={handleRecovery}
+                    disabled={loading || !recoveryEmail || !recoveryPasswordState.valid}
+                  >
                     <i className={`fa-solid ${loading ? 'fa-spinner fa-spin' : 'fa-key'}`}></i>
-                    Actualizar contraseña
+                    Actualizar contrasena
                   </button>
                 </div>
               </div>
@@ -197,7 +226,7 @@ export default function Login() {
               ) : (
                 <>
                   <i className="fa-solid fa-arrow-right-to-bracket"></i>
-                  Iniciar sesión
+                  Iniciar sesion
                 </>
               )}
             </button>

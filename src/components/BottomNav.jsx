@@ -14,6 +14,7 @@ export default function BottomNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+
   const navItems = NAV_ITEMS.filter((item) => {
     if (item.path === '/monitor') return user?.role === 'monitor';
     if (item.path === '/chat') return ['seeker', 'monitor', 'service_provider', 'companion'].includes(user?.role);
@@ -27,9 +28,14 @@ export default function BottomNav() {
           const isActive = location.pathname === item.path;
 
           return (
-            <button key={item.path} onClick={() => navigate(item.path)} className={`bottom-nav-item ${isActive ? 'active' : ''}`}>
-              <i className={item.icon} style={{ fontSize: '18px', transition: 'all 0.2s ease' }}></i>
-              <span style={{ fontSize: '10px', letterSpacing: '0.2px' }}>{item.label}</span>
+            <button
+              key={item.path}
+              onClick={() => navigate(item.path)}
+              className={`bottom-nav-item ${isActive ? 'active' : ''}`}
+              type="button"
+            >
+              <i className={item.icon}></i>
+              <span>{item.label}</span>
             </button>
           );
         })}

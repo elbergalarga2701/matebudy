@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { apiUrl } from '../api';
 import { useAuth } from '../AuthContext';
@@ -16,7 +16,6 @@ export default function MapHub() {
   const [query, setQuery] = useState('');
   const [providers, setProviders] = useState([]);
   const [loading, setLoading] = useState(true);
-  const resultsRef = useRef(null);
 
   const authHeaders = useMemo(() => {
     const token = localStorage.getItem('mate_token');
@@ -27,15 +26,13 @@ export default function MapHub() {
     void (async () => {
       try {
         const response = await fetch(apiUrl('/api/users'), {
-          headers: {
-            ...authHeaders,
-          },
+          headers: { ...authHeaders },
           credentials: 'include',
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar perfiles reales');
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar perfiles');
         setProviders((data.users || []).filter((entry) => entry.role === 'service_provider'));
-      } catch (error) {
+      } catch {
         setProviders([]);
       } finally {
         setLoading(false);
@@ -44,6 +41,7 @@ export default function MapHub() {
   }, [user?.uid]);
 
   const normalizedQuery = normalizeText(query.trim());
+
   const filtered = useMemo(() => {
     const base = providers.map((item) => {
       const haystack = normalizeText(`${item.name} ${item.profession} ${item.about} ${(item.tags || []).join(' ')}`);
@@ -55,13 +53,8 @@ export default function MapHub() {
 
       return {
         ...item,
-        service: item.profession || 'Servicio sin definir',
-        specialty: item.about || (item.tags || []).join(', ') || 'Sin descripción',
-        availability: item.profileAnswers?.availability || 'Sin disponibilidad cargada',
-        hourlyRate: item.rate || 0,
-        activeProfile: item.profileStatus === 'activo',
-        completedServices: 0,
-        ratingLabel: 'Sin valoraciones visibles',
+        service: item.profession || 'Servicio',
+        specialty: item.about || (item.tags || []).join(', ') || 'Sin descripcion',
         matchScore: Math.min(queryScore + onlineBonus + activeBonus, 99),
       };
     });
@@ -71,125 +64,146 @@ export default function MapHub() {
       .sort((a, b) => b.matchScore - a.matchScore || Number(b.isOnline) - Number(a.isOnline));
   }, [providers, normalizedQuery]);
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
-    event.currentTarget.querySelector('input')?.blur();
-    resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
   return (
-    <div className="app-scroll" style={{ padding: '0 0 110px', minHeight: '100vh' }}>
-      <div className="page-shell page-stack">
-        <section className="hero-banner">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>
-            <div style={{ maxWidth: '620px' }}>
-              <span className="badge badge-accent" style={{ marginBottom: '12px' }}>
-                <i className="fa-solid fa-map-location-dot"></i> Servicios reales
-              </span>
-              <h1 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '10px' }}>Busqueda en contexto</h1>
-              <p style={{ fontSize: '15px', lineHeight: 1.6, opacity: 0.94 }}>
-                Encuentra servicios reales cerca de ti. Describe lo que necesitas y conecta con personas disponibles.
-              </p>
-            </div>
-          </div>
-        </section>
+    <div className="social-feed-shell" style={{ paddingBottom: '100px' }}>
+      {/* Header */}
+      <header className="social-topbar animate-in">
+        <div>
+          <span className="badge badge-accent" style={{ marginBottom: '12px' }}>
+            <i className="fa-solid fa-map-location-dot"></i> Mapa de servicios
+          </span>
+          <h1>Encuentra servicios</h1>
+          <p style={{ marginTop: '8px' }}>Conecta con profesionales reales cerca de ti.</p>
+        </div>
+      </header>
 
-        <section className="surface-card" style={{ padding: '18px' }}>
-          <div className="section-title" style={{ marginBottom: '12px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 800 }}>Que necesitas?</h2>
-            <p style={{ fontSize: '14px' }}>Describe tu necesidad y pulsa Enter. El teclado se cierra y los resultados quedan visibles enseguida.</p>
-          </div>
-
-          <form onSubmit={handleSubmit} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '10px', padding: '6px 8px 6px 14px', background: 'rgba(247, 239, 230, 0.72)', borderRadius: '18px', border: '1px solid var(--border)' }}>
-            <i className="fa-solid fa-magnifying-glass" style={{ color: 'var(--text-light)' }}></i>
+      {/* Search */}
+      <section className="card" style={{ marginBottom: '24px' }}>
+        <form onSubmit={(e) => { e.preventDefault(); e.target.querySelector('input')?.blur(); }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <i className="fa-solid fa-magnifying-glass" style={{ color: 'var(--text-muted)', fontSize: '18px' }}></i>
             <input
               type="text"
-              placeholder="Ejemplo: necesito compañía para ir al médico y ayuda con trámites"
+              className="form-input"
+              placeholder="Que necesitas? Ej: acompanamiento, terapia..."
               value={query}
-              spellCheck
-              autoCorrect="on"
-              autoCapitalize="sentences"
               onChange={(e) => setQuery(e.target.value)}
-              style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '14px', color: 'var(--text-dark)', fontFamily: 'var(--font)' }}
+              style={{ border: 'none', boxShadow: 'none', padding: '12px 0' }}
             />
-            <button type="submit" className="pill-button pill-button-primary" style={{ padding: '10px 16px' }}>Buscar</button>
-          </form>
-
-          <div className="info-chip-row" style={{ marginTop: '12px' }}>
-            <span className="badge badge-secondary"><i className="fa-solid fa-shield-heart"></i> Solo mostramos perfiles reales</span>
-            <span className="badge badge-accent"><i className="fa-solid fa-bolt"></i> Priorizamos presencia, perfil activo y coincidencia</span>
           </div>
-        </section>
+        </form>
 
-        <section className="feed-layout" ref={resultsRef}>
-          <div className="page-stack">
-            <div className="surface-card" style={{ padding: '18px' }}>
-              <div className="section-title" style={{ marginBottom: '12px' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Resultados de servicios</h3>
-                <p style={{ fontSize: '14px' }}>Sin datos mockeados. Todo lo que aparece aquí sale de perfiles reales.</p>
-              </div>
+        <div style={{ display: 'flex', gap: '8px', marginTop: '16px', flexWrap: 'wrap' }}>
+          <span className="badge badge-secondary">
+            <i className="fa-solid fa-shield-heart"></i> Perfiles verificados
+          </span>
+          <span className="badge badge-primary">
+            <i className="fa-solid fa-bolt"></i> En tiempo real
+          </span>
+        </div>
+      </section>
 
-              <div className="list-stack">
-                {loading ? (
-                  <div className="empty-state">
-                    <div className="empty-state-icon"><i className="fa-solid fa-spinner fa-spin"></i></div>
-                    <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Cargando perfiles</h3>
-                    <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>Estamos trayendo servicios reales.</p>
-                  </div>
-                ) : filtered.length ? filtered.map((item, index) => (
-                  <div key={item.id} style={{ padding: '16px', borderRadius: '20px', background: 'rgba(255,255,255,0.78)', border: '1px solid rgba(32,75,87,0.08)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '10px' }}>
+      {/* Results */}
+      <div>
+        <h2 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <i className="fa-solid fa-list" style={{ color: 'var(--primary)' }}></i>
+          Resultados {query && `(${filtered.length})`}
+        </h2>
+
+        {loading ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <i className="fa-solid fa-spinner fa-spin"></i>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Cargando</h3>
+            <p style={{ color: 'var(--text-muted)' }}>Obteniendo perfiles disponibles...</p>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <i className="fa-solid fa-inbox"></i>
+            </div>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '8px' }}>Sin resultados</h3>
+            <p style={{ color: 'var(--text-muted)' }}>
+              {query ? 'Prueba con otros terminos de busqueda' : 'Aun no hay proveedores registrados'}
+            </p>
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gap: '16px' }}>
+            {filtered.map((item, index) => (
+              <article
+                key={item.id}
+                className="card"
+                style={{
+                  cursor: 'pointer',
+                  transition: 'all var(--transition-fast)',
+                }}
+                onClick={() => navigate('/perfil', { state: { profile: item, from: '/mapa' } })}
+              >
+                <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                  {item.avatar ? (
+                    <img
+                      src={item.avatar}
+                      alt={item.name}
+                      style={{
+                        width: '64px',
+                        height: '64px',
+                        borderRadius: 'var(--radius-lg)',
+                        objectFit: 'cover',
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: 'var(--radius-lg)',
+                      background: 'var(--gradient-primary)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: 'white',
+                      fontWeight: 700,
+                      fontSize: '24px',
+                      flexShrink: 0,
+                    }}>
+                      {item.name.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
                       <div>
-                        <div className="info-chip-row" style={{ marginBottom: '8px' }}>
-                          <span className="badge badge-accent">Puesto #{index + 1}</span>
-                          {item.isOnline && <span className="badge badge-primary">Activo ahora</span>}
-                        </div>
-                        <strong style={{ display: 'block', color: 'var(--text-dark)', fontSize: '17px' }}>{item.name}</strong>
-                        <span style={{ color: 'var(--text-medium)', fontSize: '13px' }}>{item.service}</span>
+                        <h3 style={{ fontSize: '17px', fontWeight: 700, marginBottom: '4px' }}>{item.name}</h3>
+                        <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{item.service}</p>
                       </div>
-                      <div className="info-chip-row">
-                        <span className="badge badge-accent">{item.matchScore}% match</span>
-                        <span className="badge badge-secondary">{item.ratingLabel}</span>
-                        <span className="badge badge-primary">{item.hourlyRate ? `$${item.hourlyRate}/h` : 'Sin tarifa'}</span>
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        {item.isOnline && (
+                          <span className="badge badge-success" style={{ fontSize: '11px' }}>
+                            <i className="fa-solid fa-circle" style={{ fontSize: '8px' }}></i> Activo
+                          </span>
+                        )}
+                        <span className="badge badge-secondary" style={{ fontSize: '11px' }}>
+                          {item.matchScore}% match
+                        </span>
                       </div>
                     </div>
 
-                    <p style={{ color: 'var(--text-medium)', fontSize: '14px', lineHeight: 1.6, marginBottom: '12px' }}>
+                    <p style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '12px', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                       {item.specialty}
                     </p>
 
-                    <div className="info-chip-row" style={{ marginBottom: '12px' }}>
-                      <span className="badge badge-secondary"><i className="fa-solid fa-clock"></i> {item.availability}</span>
-                      <span className={`badge ${item.activeProfile ? 'badge-accent' : 'badge-secondary'}`}>
-                        {item.activeProfile ? 'Perfil activo' : 'Perfil pausado'}
-                      </span>
-                      <span className="badge badge-secondary">{item.manualStatus?.replaceAll('_', ' ') || 'sin estado'}</span>
-                    </div>
-
-                    <div className="info-chip-row">
-                      <button type="button" className="pill-button pill-button-primary" style={{ padding: '10px 16px' }} onClick={() => navigate('/chat', { state: { provider: item, query: query.trim() } })}>
-                        <i className="fa-solid fa-comments"></i> Ir al chat
-                      </button>
-                      <button type="button" className="pill-button pill-button-secondary" style={{ padding: '10px 16px' }} onClick={() => navigate('/perfil', { state: { profile: item, readOnly: true, from: '/mapa' } })}>
-                        <i className="fa-solid fa-user"></i> Ver perfil
-                      </button>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {(item.tags || []).slice(0, 3).map((tag, i) => (
+                        <span key={i} className="badge badge-secondary" style={{ fontSize: '11px' }}>{tag}</span>
+                      ))}
                     </div>
                   </div>
-                )) : (
-                  <div className="empty-state">
-                    <div className="empty-state-icon">
-                      <i className="fa-solid fa-compass"></i>
-                    </div>
-                    <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>No encontramos perfiles para esa busqueda</h3>
-                    <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>
-                      Prueba describiendo mejor tu necesidad, por ejemplo compañía, trámites, médico, traslado o apoyo emocional.
-                    </p>
-                  </div>
-                )}
-              </div>
-            </div>
+                </div>
+              </article>
+            ))}
           </div>
-        </section>
+        )}
       </div>
     </div>
   );

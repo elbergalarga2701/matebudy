@@ -305,8 +305,9 @@ export const authRoutes = (app) => {
   // Login
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
-    console.log('[LOGIN] Attempt:', email);
-    db.get('SELECT * FROM users WHERE email = ?', [email], async (err, user) => {
+    const cleanEmail = String(email || '').trim().toLowerCase();
+    console.log('[LOGIN] Attempt:', cleanEmail);
+    db.get('SELECT * FROM users WHERE LOWER(email) = ?', [cleanEmail], async (err, user) => {
       if (err) {
         console.log('[LOGIN] DB Error:', err.message);
         return res.status(500).json({ error: 'Error interno' });

@@ -16,6 +16,8 @@ import { paymentRoutes } from './routes/payments.js';
 import { sosRoutes } from './routes/sos.js';
 import { adminRoutes } from './routes/admin.js';
 
+import db from './db.js';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const envPath = path.join(__dirname, '.env');
@@ -103,6 +105,47 @@ app.use(express.static(path.join(__dirname, '../dist')));
 // Health check endpoint
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'Backend running correctly' });
+});
+
+// Sync users endpoint - para importar usuarios desde base de datos local
+app.post('/api/admin/sync-users', (req, res) => {
+  const code = req.headers['x-admin-code'];
+  if (code !== DEFAULT_ADMIN_CODE) {
+    return res.status(403).json({ error: 'Código inválido' });
+  }
+  
+  const { users } = req.body;
+  if (!Array.isArray(users)) {
+    return res.status(400).json({ error: 'users debe ser un array' });
+  }
+  
+  const results = [];
+  const db = import('./db.js').then(({ default: dbModule }) => {
+    users.forEach((user) => {
+      const stmt = dbModule.prepare(`
+        INSERT OR REPLACE INTO users (id, email, password, role, rate, isVerified, verificationStatus, 
+          onboardingCompleted, profileStatus, name, profession, about, tags, avatar, 
+          profileAnswers, verificationData, verificationReview, manualStatus, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      
+      stmt.run(
+        user.id, user.email, user.password, user.role, user.rate || 0,
+        user.isVerified ? 1 : 0, user.verificationStatus || 'pending',
+        user.onboardingCompleted ? 1 : 0, user.profileStatus || 'pendiente',
+        user.name || 'Usuario', user.profession || '', user.about || '',
+        user.tags || '[]', user.avatar || '',
+        user.profileAnswers || '{}', user.verificationData || null,
+        user.verificationReview || null, user.manualStatus || 'en_línea',
+        user.created_at || new Date().toISOString()
+      );
+      results.push({ email: user.email, status: 'imported' });
+    });
+    
+    res.json({ success: true, imported: results.length, users: results });
+  }).catch((err) => {
+    res.status(500).json({ error: err.message });
+  });
 });
 
 // Update JSON for auto-update

@@ -178,12 +178,11 @@ paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
 
-// Serve static files - try multiple paths for Render compatibility
+// Serve static files - Render builds to project root dist/
 const possibleDistPaths = [
-  path.join(__dirname, 'dist'),
+  path.join(__dirname, '../dist'),  // Render project root
   path.join(process.cwd(), 'dist'),
-  path.join(__dirname, '../dist'),
-  path.join(process.cwd(), '../dist'),
+  path.join(__dirname, 'dist'),
 ];
 let distPath = '';
 console.log('[Server] Checking dist paths:');

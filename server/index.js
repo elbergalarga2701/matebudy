@@ -17,6 +17,7 @@ import { sosRoutes } from './routes/sos.js';
 import { adminRoutes } from './routes/admin.js';
 
 import db from './db.js';
+import { legacyUploadsDir, projectRoot, uploadsDir } from './paths.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -48,9 +49,17 @@ function parseOrigins(value) {
 const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 3000);
 const JSON_LIMIT = process.env.JSON_LIMIT || '10mb';
-const uploadsDir = path.resolve(__dirname, process.env.UPLOADS_DIR || '../uploads');
-const legacyUploadsDir = path.resolve(__dirname, 'uploads');
-const allowedOrigins = [
+const DEFAULT_ADMIN_CODE = process.env.ADMIN_PANEL_CODE || '';
+const packageJsonPath = path.join(projectRoot, 'package.json');
+const appVersion = (() => {
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    return packageJson.version || '1.0.0';
+  } catch (error) {
+    return '1.0.0';
+  }
+})();
+const configuredOrigins = [
   'http://localhost',
   'https://localhost',
   'http://localhost:5173',
@@ -64,9 +73,21 @@ const allowedOrigins = [
   'https://matebudy-1.onrender.com',
   ...parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
 ];
+const allowAllOrigins = configuredOrigins.includes('*');
+const allowedOrigins = [...new Set(configuredOrigins.filter((origin) => origin && origin !== '*'))];
+
+function isOriginAllowed(origin) {
+  return allowAllOrigins || allowedOrigins.includes(origin);
+}
 
 const corsOptions = {
-  origin: true, // Allow all origins in production - Render handles this
+  origin: (origin, callback) => {
+    if (!origin || isOriginAllowed(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error(`Origin not allowed by CORS: ${origin}`));
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'],
@@ -139,9 +160,9 @@ app.post('/api/admin/sync-users', (req, res) => {
 // Update JSON for auto-update
 app.get('/update.json', (req, res) => {
   res.json({
-    version: '1.0.1',
+    version: process.env.APP_VERSION || appVersion,
     url: 'https://matebudy.onrender.com/matebudy.apk',
-    notes: 'Mejoras en rendimiento y corrección de errores',
+    notes: 'Actualizacion disponible de MateBudy',
     priority: 'high',
   });
 });

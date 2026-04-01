@@ -5,7 +5,11 @@ export async function registerMatebudyServiceWorker() {
   if (!('serviceWorker' in navigator)) return null;
 
   try {
-    return await navigator.serviceWorker.register('/service-worker.js');
+    const registration = await navigator.serviceWorker.register('/service-worker.js', {
+      updateViaCache: 'none',
+    });
+    await registration.update().catch(() => null);
+    return registration;
   } catch (error) {
     return null;
   }

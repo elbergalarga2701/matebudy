@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { apiUrl } from '../api';
+import { apiUrl, publicFileUrl } from '../api';
 
 function getPaymentDefaults() {
   const browserOrigin = typeof window !== 'undefined' && /^https?:/i.test(window.location.origin)
@@ -21,9 +21,9 @@ function getPaymentDefaults() {
     mpPublicKey: '',
     mpAccessToken: '',
     mpWebhookUrl: '',
-    mpSuccessUrl: `${appOrigin}/chat?payment=success`,
-    mpPendingUrl: `${appOrigin}/chat?payment=pending`,
-    mpFailureUrl: `${appOrigin}/chat?payment=failure`,
+    mpSuccessUrl: `${appOrigin}/#/chat?payment=success`,
+    mpPendingUrl: `${appOrigin}/#/chat?payment=pending`,
+    mpFailureUrl: `${appOrigin}/#/chat?payment=failure`,
   };
 }
 
@@ -34,7 +34,12 @@ function normalizeReturnUrl(value, fallback) {
     const url = new URL(value);
     const fallbackUrl = new URL(fallback);
     if (['localhost', '127.0.0.1'].includes(url.hostname) && fallbackUrl.origin !== url.origin) {
-      return `${fallbackUrl.origin}${url.pathname}${url.search}`;
+      return url.pathname === '/chat'
+        ? `${fallbackUrl.origin}/#${url.pathname}${url.search}`
+        : `${fallbackUrl.origin}${url.pathname}${url.search}`;
+    }
+    if (url.pathname === '/chat') {
+      return `${url.origin}/#${url.pathname}${url.search}`;
     }
     return value;
   } catch (error) {
@@ -76,12 +81,7 @@ export default function AdminReview() {
 
   const mediaUrl = (value) => {
     if (!value) return '';
-    if (/^https?:\/\//i.test(value)) return value;
-    if (value.startsWith('/uploads')) {
-      const isCapacitor = typeof window !== 'undefined' && window.location.protocol === 'capacitor:';
-      const socketUrl = isCapacitor ? 'https://matebudy.onrender.com' : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000');
-      return `${socketUrl}${value}`;
-    }
+    if (value.startsWith('/uploads')) return publicFileUrl(value);
     return apiUrl(value);
   };
 
@@ -176,13 +176,13 @@ export default function AdminReview() {
     };
   }, [adminUnlocked]);
 
-  const handleUnlock = (e) => {
+  const handleUnlock = async (e) => {
     e.preventDefault();
     setError('');
     setSuccess('');
 
     try {
-      unlockAdmin(code);
+      await unlockAdmin(code);
       setSuccess('Revision administrativa habilitada');
       void refreshQueue();
     } catch (err) {
@@ -190,13 +190,13 @@ export default function AdminReview() {
     }
   };
 
-  const handleDecision = async (userId, decisión) => {
+  const handleDecision = async (userId, decision) => {
     setError('');
     setSuccess('');
 
     try {
-      await setVerificationDecision({ userId, decisión, notes: notesById[userId] || '' });
-      setSuccess(decisión === 'approved' ? 'Identidad aprobada' : 'Identidad rechazada');
+      await setVerificationDecision({ userId, decision, notes: notesById[userId] || '' });
+      setSuccess(decision === 'approved' ? 'Identidad aprobada' : 'Identidad rechazada');
       await refreshQueue();
     } catch (err) {
       setError(explainAdminNetworkError(err, 'No se pudo guardar la decisión'));
@@ -288,7 +288,7 @@ export default function AdminReview() {
 
           <form onSubmit={handleUnlock}>
             <div className="form-group">
-              <label className="form-label">Código administrativo local</label>
+              <label className="form-label">Codigo administrativo</label>
               <input
                 type="password"
                 className="form-input"
@@ -296,11 +296,6 @@ export default function AdminReview() {
                 value={code}
                 onChange={(e) => setCode(e.target.value)}
               />
-            </div>
-
-            <div className="info-note">
-              <i className="fa-solid fa-key"></i>
-              Código actual de prueba: <strong style={{ marginLeft: '4px' }}>matebudy-admin-uy</strong>
             </div>
 
             <button type="submit" className="btn btn-primary">

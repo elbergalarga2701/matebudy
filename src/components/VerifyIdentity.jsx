@@ -252,7 +252,7 @@ export default function VerifyIdentity() {
 
             <div className="info-note">
               <i className="fa-solid fa-user-shield"></i>
-              Revision local: entra a <strong style={{ marginLeft: '4px' }}>/admin</strong> para aprobar o rechazar manualmente.
+              El equipo revisara manualmente la documentacion antes de habilitar el acceso completo.
             </div>
 
             {isRejected && (

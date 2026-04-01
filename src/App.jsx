@@ -1,5 +1,5 @@
 import React from 'react';
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth } from './AuthContext';
 import Login from './components/Login';
 import Register from './components/Register';
@@ -86,7 +86,7 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
-        <Route path="/admin" element={user ? <AdminReview /> : <Navigate to="/login" replace />} />
+        <Route path="/admin" element={<AdminReview />} />
         <Route path="/" element={user && !mustVerify && !mustOnboard ? <Feed /> : <Navigate to={fallbackPath} replace />} />
         <Route path="/mapa" element={user && !mustVerify && !mustOnboard ? <MapHub /> : <Navigate to={fallbackPath} replace />} />
         <Route path="/chat" element={user && !mustVerify && !mustOnboard ? <Chat /> : <Navigate to={fallbackPath} replace />} />

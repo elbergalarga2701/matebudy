@@ -1,6 +1,6 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter, HashRouter } from 'react-router-dom'
+import { HashRouter } from 'react-router-dom'
 import { Capacitor } from '@capacitor/core'
 import { AuthProvider } from './AuthContext.jsx'
 import App from './App.jsx'
@@ -10,10 +10,20 @@ import './index.css'
 const Router = HashRouter
 const rootElement = document.getElementById('root')
 
+if (
+  typeof window !== 'undefined'
+  && !Capacitor.isNativePlatform()
+  && window.location.pathname !== '/'
+  && !window.location.hash.startsWith('#/')
+) {
+  const targetHash = `#${window.location.pathname}${window.location.search}`
+  window.location.replace(`${window.location.origin}/${targetHash}`)
+}
+
 window.__matebudyBooted = true
 console.log('[MateBudy] main.jsx loaded', {
   native: Capacitor.isNativePlatform(),
-  router: Capacitor.isNativePlatform() ? 'hash' : 'browser',
+  router: 'hash',
   href: window.location.href,
 })
 

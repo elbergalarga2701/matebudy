@@ -3,8 +3,8 @@ import jwt from 'jsonwebtoken';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import db from '../db.js';
+import { uploadsDir } from '../paths.js';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'matebudy_super_secret_key_mvp_only';
 const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'refresh_secret_mvp';
@@ -12,10 +12,6 @@ const ACCESS_TOKEN_TTL = process.env.JWT_ACCESS_TTL || '7d';
 const REFRESH_TOKEN_TTL = process.env.JWT_REFRESH_TTL || '30d';
 const ACCESS_TOKEN_MAX_AGE_MS = Number(process.env.JWT_ACCESS_MAX_AGE_MS || 7 * 24 * 60 * 60 * 1000);
 const REFRESH_TOKEN_MAX_AGE_MS = Number(process.env.JWT_REFRESH_MAX_AGE_MS || 30 * 24 * 60 * 60 * 1000);
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.resolve(__dirname, process.env.UPLOADS_DIR || '../../uploads');
-
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
@@ -45,10 +41,13 @@ const upload = multer({
 });
 
 function authCookieOptions(maxAge) {
+  const sameSite = process.env.AUTH_COOKIE_SAMESITE
+    || (process.env.NODE_ENV === 'production' ? 'none' : 'lax');
+
   return {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'strict',
+    sameSite,
     maxAge,
   };
 }
@@ -148,17 +147,6 @@ export const verifyToken = (req, res, next) => {
 };
 
 export const authRoutes = (app) => {
-  // Debug middleware para ver qué llega al endpoint
-  app.use('/api/auth/register-with-identity', (req, res, next) => {
-    console.log('[DEBUG] Request received:', {
-      method: req.method,
-      contentType: req.headers['content-type'],
-      hasBody: !!req.body,
-      bodyKeys: req.body ? Object.keys(req.body) : null,
-    });
-    next();
-  });
-
   app.post('/api/auth/register-with-identity', upload.fields([
     { name: 'selfie', maxCount: 1 },
     { name: 'document', maxCount: 1 },
@@ -176,11 +164,12 @@ export const authRoutes = (app) => {
       documentType,
       documentNumber,
     } = req.body;
+    const cleanEmail = String(email || '').trim().toLowerCase();
 
     const selfieFile = req.files?.selfie?.[0];
     const documentFile = req.files?.document?.[0];
 
-    if (!email || !password || !name) {
+    if (!cleanEmail || !password || !name) {
       safeUnlink(selfieFile?.path);
       safeUnlink(documentFile?.path);
       return res.status(400).json({ error: 'Completa nombre, correo y contrasena' });
@@ -224,7 +213,7 @@ export const authRoutes = (app) => {
           isVerified, verificationStatus, profileStatus, verificationData, created_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, CURRENT_TIMESTAMP)`,
         [
-          email,
+          cleanEmail,
           hash,
           role || 'client',
           rate || 0,
@@ -241,7 +230,7 @@ export const authRoutes = (app) => {
 
       createdUserId = insertResult.lastID;
 
-      const token = jwt.sign({ id: createdUserId, role: role || 'client', email }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
+      const token = jwt.sign({ id: createdUserId, role: role || 'client', email: cleanEmail }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
       const refreshToken = jwt.sign({ id: createdUserId }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_TTL });
       const createdUser = await getAsync('SELECT * FROM users WHERE id = ?', [createdUserId]);
 
@@ -273,15 +262,16 @@ export const authRoutes = (app) => {
   // Register
   app.post('/api/auth/register', async (req, res) => {
     const { email, password, role, rate, name, profession, about, tags, avatar } = req.body;
+    const cleanEmail = String(email || '').trim().toLowerCase();
     try {
       const hash = await bcrypt.hash(password, 12);
       db.run(
         `INSERT INTO users (email, password, role, rate, name, profession, about, tags, avatar, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [email, hash, role || 'client', rate || 0, name || 'Usuario', profession || '', about || '', JSON.stringify(tags || []), avatar || ''],
+        [cleanEmail, hash, role || 'client', rate || 0, name || 'Usuario', profession || '', about || '', JSON.stringify(tags || []), avatar || ''],
         function (err) {
           if (err) return res.status(400).json({ error: 'Email ya registrado' });
-          const token = jwt.sign({ id: this.lastID, role: role || 'client', email }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
+          const token = jwt.sign({ id: this.lastID, role: role || 'client', email: cleanEmail }, JWT_SECRET, { expiresIn: ACCESS_TOKEN_TTL });
           const refreshToken = jwt.sign({ id: this.lastID }, JWT_REFRESH_SECRET, { expiresIn: REFRESH_TOKEN_TTL });
 
           res.cookie('token', token, authCookieOptions(ACCESS_TOKEN_MAX_AGE_MS));

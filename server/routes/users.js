@@ -2,12 +2,8 @@ import db from '../db.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { verifyToken } from './auth.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.resolve(__dirname, process.env.UPLOADS_DIR || '../../uploads');
+import { uploadsDir } from '../paths.js';
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -34,7 +30,7 @@ const upload = multer({
     } else {
       cb(new Error('Solo imagenes o PDF permitidos'));
     }
-  }
+  },
 });
 
 function parseJson(value, fallback) {
@@ -74,6 +70,33 @@ function formatUser(row) {
     verificationData: parseJson(row.verificationData, null),
     verificationReview: parseJson(row.verificationReview, null),
     created_at: row.created_at,
+  };
+}
+
+function formatMonitorLinkRequest(row, currentUserId) {
+  const isIncoming = Number(row.target_user_id) === Number(currentUserId);
+  const otherParty = {
+    id: isIncoming ? row.monitor_id : row.target_id,
+    name: isIncoming ? row.monitor_name : row.target_name,
+    email: isIncoming ? row.monitor_email : row.target_email,
+    role: isIncoming ? row.monitor_role : row.target_role,
+    profession: isIncoming ? row.monitor_profession : row.target_profession,
+    avatar: isIncoming ? row.monitor_avatar : row.target_avatar,
+    manualStatus: isIncoming ? row.monitor_manual_status : row.target_manual_status,
+    isOnline: Boolean(isIncoming ? row.monitor_is_online : row.target_is_online),
+    lastSeen: isIncoming ? row.monitor_last_seen : row.target_last_seen,
+  };
+
+  return {
+    id: row.id,
+    note: row.note || '',
+    status: row.status || 'pending',
+    createdAt: row.created_at,
+    respondedAt: row.responded_at || null,
+    isIncoming,
+    requesterId: row.monitor_user_id,
+    targetUserId: row.target_user_id,
+    user: otherParty,
   };
 }
 
@@ -122,6 +145,43 @@ function buildSearchClause(search) {
   };
 }
 
+async function getMonitorRequestsForUser(userId) {
+  const rows = await allAsync(
+    `SELECT
+       mlr.*,
+       monitor.id AS monitor_id,
+       monitor.email AS monitor_email,
+       monitor.role AS monitor_role,
+       monitor.name AS monitor_name,
+       monitor.profession AS monitor_profession,
+       monitor.avatar AS monitor_avatar,
+       monitor.manualStatus AS monitor_manual_status,
+       monitor_presence.is_online AS monitor_is_online,
+       monitor_presence.last_seen AS monitor_last_seen,
+       target.id AS target_id,
+       target.email AS target_email,
+       target.role AS target_role,
+       target.name AS target_name,
+       target.profession AS target_profession,
+       target.avatar AS target_avatar,
+       target.manualStatus AS target_manual_status,
+       target_presence.is_online AS target_is_online,
+       target_presence.last_seen AS target_last_seen
+     FROM monitor_link_requests mlr
+     JOIN users monitor ON monitor.id = mlr.monitor_user_id
+     JOIN users target ON target.id = mlr.target_user_id
+     LEFT JOIN user_presence monitor_presence ON monitor_presence.user_id = monitor.id
+     LEFT JOIN user_presence target_presence ON target_presence.user_id = target.id
+     WHERE (mlr.monitor_user_id = ? OR mlr.target_user_id = ?)
+     ORDER BY
+       CASE WHEN mlr.status = 'pending' THEN 0 ELSE 1 END,
+       mlr.created_at DESC`,
+    [userId, userId],
+  );
+
+  return rows.map((row) => formatMonitorLinkRequest(row, userId));
+}
+
 export const userRoutes = (app) => {
   app.get('/api/users', verifyToken, (req, res) => {
     db.all(
@@ -133,7 +193,7 @@ export const userRoutes = (app) => {
       (err, users) => {
         if (err) return res.status(500).json({ error: err.message });
         res.json({ users: users.map((user) => formatUser(user)) });
-      }
+      },
     );
   });
 
@@ -147,7 +207,7 @@ export const userRoutes = (app) => {
       (err, user) => {
         if (err || !user) return res.status(404).json({ error: 'Usuario no encontrado' });
         res.json({ user: formatUser(user) });
-      }
+      },
     );
   });
 
@@ -299,6 +359,150 @@ export const userRoutes = (app) => {
     }
   });
 
+  app.get('/api/users/monitor-link-requests', verifyToken, async (req, res) => {
+    try {
+      const requests = await getMonitorRequestsForUser(req.user.id);
+      res.json({
+        incoming: requests.filter((entry) => entry.isIncoming && entry.status === 'pending'),
+        outgoing: requests.filter((entry) => !entry.isIncoming && entry.status === 'pending'),
+        history: requests.filter((entry) => entry.status !== 'pending').slice(0, 20),
+      });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/users/monitor-link-requests', verifyToken, async (req, res) => {
+    try {
+      if (req.user.role !== 'monitor') {
+        return res.status(403).json({ error: 'Solo las cuentas monitor pueden solicitar acceso de seguimiento' });
+      }
+
+      const targetUserId = Number(req.body.targetUserId);
+      const note = String(req.body.note || '').trim();
+
+      if (!targetUserId) return res.status(400).json({ error: 'Debes indicar a quien quieres monitorear' });
+      if (targetUserId === Number(req.user.id)) return res.status(400).json({ error: 'No puedes monitorearte a ti mismo' });
+
+      const targetUser = await getUserById(targetUserId);
+      if (!targetUser || !targetUser.isVerified) {
+        return res.status(404).json({ error: 'El perfil objetivo no esta disponible para monitoreo' });
+      }
+
+      const activeLink = await getAsync(
+        `SELECT id
+         FROM monitor_links
+         WHERE monitor_user_id = ? AND target_user_id = ?`,
+        [req.user.id, targetUserId],
+      );
+      if (activeLink) {
+        return res.status(400).json({ error: 'Ese perfil ya tiene un vinculo de monitor activo' });
+      }
+
+      const existingPending = await getAsync(
+        `SELECT id
+         FROM monitor_link_requests
+         WHERE monitor_user_id = ? AND target_user_id = ? AND status = 'pending'`,
+        [req.user.id, targetUserId],
+      );
+      if (existingPending) {
+        return res.status(400).json({ error: 'Ya enviaste una solicitud de monitoreo a este perfil' });
+      }
+
+      await runAsync(
+        `INSERT INTO monitor_link_requests (monitor_user_id, target_user_id, note, status, created_at)
+         VALUES (?, ?, ?, 'pending', CURRENT_TIMESTAMP)`,
+        [req.user.id, targetUserId, note || null],
+      );
+
+      res.status(201).json({ success: true, message: 'Solicitud enviada. El otro perfil debe aprobarla.' });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/users/monitor-link-requests/:requestId/approve', verifyToken, async (req, res) => {
+    try {
+      const request = await getAsync(
+        `SELECT *
+         FROM monitor_link_requests
+         WHERE id = ? AND target_user_id = ? AND status = 'pending'`,
+        [req.params.requestId, req.user.id],
+      );
+
+      if (!request) {
+        return res.status(404).json({ error: 'No se encontro una solicitud pendiente para aprobar' });
+      }
+
+      await runAsync(
+        `INSERT OR IGNORE INTO monitor_links (monitor_user_id, target_user_id, created_at)
+         VALUES (?, ?, CURRENT_TIMESTAMP)`,
+        [request.monitor_user_id, request.target_user_id],
+      );
+
+      await runAsync(
+        `UPDATE monitor_link_requests
+         SET status = 'approved', responded_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [req.params.requestId],
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.post('/api/users/monitor-link-requests/:requestId/reject', verifyToken, async (req, res) => {
+    try {
+      const request = await getAsync(
+        `SELECT *
+         FROM monitor_link_requests
+         WHERE id = ? AND target_user_id = ? AND status = 'pending'`,
+        [req.params.requestId, req.user.id],
+      );
+
+      if (!request) {
+        return res.status(404).json({ error: 'No se encontro una solicitud pendiente para rechazar' });
+      }
+
+      await runAsync(
+        `UPDATE monitor_link_requests
+         SET status = 'rejected', responded_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [req.params.requestId],
+      );
+
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/users/monitor-link-requests/:requestId', verifyToken, async (req, res) => {
+    try {
+      const request = await getAsync(
+        `SELECT *
+         FROM monitor_link_requests
+         WHERE id = ? AND status = 'pending'`,
+        [req.params.requestId],
+      );
+
+      if (!request) {
+        return res.status(404).json({ error: 'No se encontro una solicitud pendiente para cancelar' });
+      }
+
+      if (Number(request.monitor_user_id) !== Number(req.user.id) && Number(request.target_user_id) !== Number(req.user.id)) {
+        return res.status(403).json({ error: 'No puedes cancelar esta solicitud' });
+      }
+
+      await runAsync('DELETE FROM monitor_link_requests WHERE id = ?', [req.params.requestId]);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   app.get('/api/users/monitor-links', verifyToken, async (req, res) => {
     try {
       const rows = await allAsync(
@@ -316,6 +520,13 @@ export const userRoutes = (app) => {
          LEFT JOIN user_presence up ON up.user_id = u.id
          LEFT JOIN locations l ON l.user_id = u.id
          WHERE ml.monitor_user_id = ?
+           AND EXISTS (
+             SELECT 1
+             FROM monitor_link_requests mlr
+             WHERE mlr.monitor_user_id = ml.monitor_user_id
+               AND mlr.target_user_id = ml.target_user_id
+               AND mlr.status = 'approved'
+           )
          ORDER BY ml.created_at DESC`,
         [req.user.id],
       );
@@ -338,30 +549,16 @@ export const userRoutes = (app) => {
   });
 
   app.post('/api/users/monitor-links', verifyToken, async (req, res) => {
-    try {
-      const targetUserId = Number(req.body.targetUserId);
-      if (!targetUserId) return res.status(400).json({ error: 'Debes indicar a quien quieres monitorear' });
-      if (targetUserId === Number(req.user.id)) return res.status(400).json({ error: 'No puedes monitorearte a ti mismo' });
-
-      await runAsync(
-        `INSERT INTO monitor_links (monitor_user_id, target_user_id, created_at)
-         VALUES (?, ?, CURRENT_TIMESTAMP)`,
-        [req.user.id, targetUserId],
-      );
-      res.json({ success: true });
-    } catch (error) {
-      if (/UNIQUE/i.test(error.message)) {
-        return res.status(400).json({ error: 'Ese perfil ya esta vinculado a tu monitor' });
-      }
-      res.status(500).json({ error: error.message });
-    }
+    res.status(410).json({ error: 'El monitoreo ahora requiere solicitud y aprobacion explicita. Usa /api/users/monitor-link-requests.' });
   });
 
   app.delete('/api/users/monitor-links/:linkId', verifyToken, async (req, res) => {
     try {
       await runAsync(
-        'DELETE FROM monitor_links WHERE id = ? AND monitor_user_id = ?',
-        [req.params.linkId, req.user.id],
+        `DELETE FROM monitor_links
+         WHERE id = ?
+           AND (monitor_user_id = ? OR target_user_id = ?)`,
+        [req.params.linkId, req.user.id, req.user.id],
       );
       res.json({ success: true });
     } catch (error) {
@@ -371,7 +568,7 @@ export const userRoutes = (app) => {
 
   app.post('/api/users/verify-kyc', verifyToken, upload.fields([
     { name: 'selfie', maxCount: 1 },
-    { name: 'document', maxCount: 1 }
+    { name: 'document', maxCount: 1 },
   ]), async (req, res) => {
     try {
       const { documentType, documentNumber } = req.body;

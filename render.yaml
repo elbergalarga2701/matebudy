@@ -2,8 +2,7 @@ services:
   - type: web
     name: matebudy-backend
     env: node
-    rootDir: server
-    buildCommand: npm install
+    buildCommand: npm install --include=dev
     startCommand: npm start
     envVars:
       - key: NODE_ENV
@@ -15,6 +14,10 @@ services:
       - key: ADMIN_PANEL_CODE
         value: matebudy-admin-uy
       - key: CORS_ALLOWED_ORIGINS
-        value: "*"
+        value: "https://matebudy.onrender.com,https://matebudy-1.onrender.com"
+      - key: APP_FRONTEND_URL
+        value: https://matebudy-1.onrender.com
+      - key: AUTH_COOKIE_SAMESITE
+        value: none
       - key: UPLOADS_DIR
         value: ./uploads

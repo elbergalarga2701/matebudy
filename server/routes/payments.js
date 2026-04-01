@@ -2,6 +2,7 @@ import db from '../db.js';
 import { verifyToken } from './auth.js';
 
 const MP_API_BASE = 'https://api.mercadopago.com';
+const DEFAULT_FRONTEND_ORIGIN = process.env.APP_FRONTEND_URL || 'http://localhost:5173';
 
 function readEnv(name, fallback = '') {
   return process.env[name] || fallback;
@@ -63,9 +64,9 @@ async function getMercadoPagoConfig() {
     accessToken: (await getSetting('mp_access_token')) || readEnv('MP_ACCESS_TOKEN'),
     publicKey: (await getSetting('mp_public_key')) || readEnv('MP_PUBLIC_KEY'),
     webhookUrl: (await getSetting('mp_webhook_url')) || readEnv('MP_WEBHOOK_URL'),
-    successUrl: (await getSetting('mp_success_url')) || readEnv('MP_SUCCESS_URL', 'http://localhost:5173/chat?payment=success'),
-    pendingUrl: (await getSetting('mp_pending_url')) || readEnv('MP_PENDING_URL', 'http://localhost:5173/chat?payment=pending'),
-    failureUrl: (await getSetting('mp_failure_url')) || readEnv('MP_FAILURE_URL', 'http://localhost:5173/chat?payment=failure'),
+    successUrl: (await getSetting('mp_success_url')) || readEnv('MP_SUCCESS_URL', `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=success`),
+    pendingUrl: (await getSetting('mp_pending_url')) || readEnv('MP_PENDING_URL', `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=pending`),
+    failureUrl: (await getSetting('mp_failure_url')) || readEnv('MP_FAILURE_URL', `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=failure`),
   };
 }
 

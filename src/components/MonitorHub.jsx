@@ -17,6 +17,8 @@ export default function MonitorHub() {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [links, setLinks] = useState([]);
+  const [incomingRequests, setIncomingRequests] = useState([]);
+  const [outgoingRequests, setOutgoingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState('');
   const [lastSnapshot, setLastSnapshot] = useState({});
@@ -57,8 +59,8 @@ export default function MonitorHub() {
 
         if (moved) {
           void showMatebudyNotification({
-            title: `Nueva ubicación de ${link.target.displayName}`,
-            body: 'El perfil monitoreado envio una actualizacion de ubicación.',
+            title: `Nueva ubicacion de ${link.target.displayName}`,
+            body: 'El perfil monitoreado envio una actualizacion de ubicacion.',
             tag: `monitor-location-${link.id}`,
             url: '/#/monitor',
           });
@@ -74,10 +76,24 @@ export default function MonitorHub() {
     });
   };
 
+  const loadRequests = async () => {
+    const response = await fetch(apiUrl('/api/users/monitor-link-requests'), {
+      headers: {
+        ...authHeaders,
+      },
+      credentials: 'include',
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las solicitudes');
+
+    setIncomingRequests(data.incoming || []);
+    setOutgoingRequests(data.outgoing || []);
+  };
+
   useEffect(() => {
     void (async () => {
       try {
-        await loadLinks();
+        await Promise.all([loadLinks(), loadRequests()]);
       } catch (error) {
         setToast(error.message);
       } finally {
@@ -86,7 +102,7 @@ export default function MonitorHub() {
     })();
 
     const intervalId = window.setInterval(() => {
-      void loadLinks().catch(() => {});
+      void Promise.all([loadLinks(), loadRequests()]).catch(() => {});
     }, 15000);
     return () => window.clearInterval(intervalId);
   }, [user?.uid]);
@@ -118,9 +134,9 @@ export default function MonitorHub() {
     return () => window.clearTimeout(timeoutId);
   }, [query, user?.uid]);
 
-  const linkTarget = async (targetUserId) => {
+  const requestMonitoringAccess = async (targetUserId) => {
     try {
-      const response = await fetch(apiUrl('/api/users/monitor-links'), {
+      const response = await fetch(apiUrl('/api/users/monitor-link-requests'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,9 +146,9 @@ export default function MonitorHub() {
         body: JSON.stringify({ targetUserId }),
       });
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || 'No se pudo vincular el perfil');
-      await loadLinks();
-      setToast('Perfil vinculado al monitor');
+      if (!response.ok) throw new Error(data.error || 'No se pudo enviar la solicitud');
+      await loadRequests();
+      setToast('Solicitud enviada. La otra persona debe aprobarla.');
       setQuery('');
       setResults([]);
     } catch (error) {
@@ -140,15 +156,71 @@ export default function MonitorHub() {
     }
   };
 
-  const unlinkTarget = async (linkId) => {
+  const approveRequest = async (requestId) => {
     try {
-      await fetch(apiUrl(`/api/users/monitor-links/${linkId}`), {
+      const response = await fetch(apiUrl(`/api/users/monitor-link-requests/${requestId}/approve`), {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo aprobar la solicitud');
+      await Promise.all([loadRequests(), loadLinks()]);
+      setToast('Solicitud aprobada y monitoreo activado');
+    } catch (error) {
+      setToast(error.message);
+    }
+  };
+
+  const rejectRequest = async (requestId) => {
+    try {
+      const response = await fetch(apiUrl(`/api/users/monitor-link-requests/${requestId}/reject`), {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo rechazar la solicitud');
+      await loadRequests();
+      setToast('Solicitud rechazada');
+    } catch (error) {
+      setToast(error.message);
+    }
+  };
+
+  const cancelRequest = async (requestId) => {
+    try {
+      const response = await fetch(apiUrl(`/api/users/monitor-link-requests/${requestId}`), {
         method: 'DELETE',
         headers: {
           ...authHeaders,
         },
         credentials: 'include',
       });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo cancelar la solicitud');
+      await loadRequests();
+      setToast('Solicitud cancelada');
+    } catch (error) {
+      setToast(error.message);
+    }
+  };
+
+  const unlinkTarget = async (linkId) => {
+    try {
+      const response = await fetch(apiUrl(`/api/users/monitor-links/${linkId}`), {
+        method: 'DELETE',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo eliminar el vinculo');
       await loadLinks();
       setToast('Vinculo eliminado');
     } catch (error) {
@@ -161,26 +233,26 @@ export default function MonitorHub() {
       {toast && <div className="toast toast-success">{toast}</div>}
       <div className="page-shell page-stack">
         <section className="hero-banner">
-          <div style={{ maxWidth: '640px' }}>
+          <div style={{ maxWidth: '700px' }}>
             <span className="badge badge-accent" style={{ marginBottom: '12px' }}>
               <i className="fa-solid fa-shield-halved"></i> Monitor y familiar
             </span>
-            <h1 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '10px' }}>Cuidado en tiempo real</h1>
+            <h1 style={{ fontSize: '32px', fontWeight: 800, marginBottom: '10px' }}>Cuidado en tiempo real con consentimiento</h1>
             <p style={{ fontSize: '15px', lineHeight: 1.6, opacity: 0.94 }}>
-              Aquí puedes vincular perfiles reales para monitorearlos. Ya no mostramos datos falsos: solo ubicación y presencia reportadas por la app.
+              El monitoreo ahora funciona por solicitud y aprobacion explicita. Ninguna cuenta puede quedar vinculada sin consentimiento de la persona monitoreada.
             </p>
           </div>
         </section>
 
         <section className="surface-card" style={{ padding: '18px' }}>
           <div className="section-title" style={{ marginBottom: '12px' }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 800 }}>Vincular una persona</h2>
-            <p style={{ fontSize: '14px' }}>Busca por nombre y conecta este monitor al perfil que quieras seguir.</p>
+            <h2 style={{ fontSize: '22px', fontWeight: 800 }}>Solicitar acceso de monitoreo</h2>
+            <p style={{ fontSize: '14px' }}>Busca un perfil, envia una solicitud y espera su aprobacion antes de ver ubicacion, bateria o presencia.</p>
           </div>
           <input
             type="text"
             className="form-input"
-            placeholder="Buscar por nombre o profesión"
+            placeholder="Buscar por nombre o profesion"
             value={query}
             spellCheck
             autoCorrect="on"
@@ -194,15 +266,71 @@ export default function MonitorHub() {
                   <div style={{ flex: 1 }}>
                     <strong style={{ display: 'block', color: 'var(--text-dark)' }}>{entry.name}</strong>
                     <span style={{ color: 'var(--text-medium)', fontSize: '13px' }}>
-                      {entry.profession || 'Sin descripción'} · {entry.manualStatus?.replaceAll('_', ' ') || 'sin estado'} · {entry.isOnline ? 'activo ahora' : 'sin presencia ahora'}
+                      {entry.profession || 'Sin descripcion'} · {entry.manualStatus?.replaceAll('_', ' ') || 'sin estado'} · {entry.isOnline ? 'activo ahora' : 'sin presencia ahora'}
                     </span>
                   </div>
-                  <button type="button" className="pill-button pill-button-primary" onClick={() => void linkTarget(entry.id)}>Vincular</button>
+                  <button type="button" className="pill-button pill-button-primary" onClick={() => void requestMonitoringAccess(entry.id)}>
+                    Solicitar acceso
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </section>
+
+        {(incomingRequests.length > 0 || outgoingRequests.length > 0) && (
+          <section className="page-stack">
+            {incomingRequests.length > 0 && (
+              <div className="surface-card" style={{ padding: '18px' }}>
+                <div className="section-title" style={{ marginBottom: '12px' }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: 800 }}>Solicitudes por aprobar</h2>
+                  <p style={{ fontSize: '14px' }}>Solo la persona monitoreada puede habilitar el acceso.</p>
+                </div>
+                <div className="list-stack">
+                  {incomingRequests.map((request) => (
+                    <div key={request.id} className="surface-card" style={{ padding: '14px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ display: 'block', color: 'var(--text-dark)' }}>{request.user.name}</strong>
+                        <span style={{ color: 'var(--text-medium)', fontSize: '13px' }}>
+                          {request.user.profession || request.user.role} · solicitada {formatUpdatedAt(request.createdAt)}
+                        </span>
+                        {request.note && <p style={{ marginTop: '8px', color: 'var(--text-medium)' }}>{request.note}</p>}
+                      </div>
+                      <div className="info-chip-row">
+                        <button type="button" className="pill-button pill-button-primary" onClick={() => void approveRequest(request.id)}>Aprobar</button>
+                        <button type="button" className="pill-button pill-button-secondary" onClick={() => void rejectRequest(request.id)}>Rechazar</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {outgoingRequests.length > 0 && (
+              <div className="surface-card" style={{ padding: '18px' }}>
+                <div className="section-title" style={{ marginBottom: '12px' }}>
+                  <h2 style={{ fontSize: '22px', fontWeight: 800 }}>Solicitudes enviadas</h2>
+                  <p style={{ fontSize: '14px' }}>Estas solicitudes siguen pendientes hasta que la otra persona las apruebe.</p>
+                </div>
+                <div className="list-stack">
+                  {outgoingRequests.map((request) => (
+                    <div key={request.id} className="surface-card" style={{ padding: '14px', display: 'flex', justifyContent: 'space-between', gap: '12px', alignItems: 'center' }}>
+                      <div style={{ flex: 1 }}>
+                        <strong style={{ display: 'block', color: 'var(--text-dark)' }}>{request.user.name}</strong>
+                        <span style={{ color: 'var(--text-medium)', fontSize: '13px' }}>
+                          {request.user.profession || request.user.role} · enviada {formatUpdatedAt(request.createdAt)}
+                        </span>
+                      </div>
+                      <button type="button" className="pill-button pill-button-secondary" onClick={() => void cancelRequest(request.id)}>
+                        Cancelar
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         <section className="page-stack">
           {loading ? (
@@ -215,26 +343,26 @@ export default function MonitorHub() {
             <div className="empty-state">
               <div className="empty-state-icon"><i className="fa-solid fa-user-plus"></i></div>
               <h3 style={{ fontSize: '20px', fontWeight: 800, marginBottom: '8px' }}>Todavia no tienes perfiles vinculados</h3>
-              <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>Busca a una persona arriba para conectarla a este monitor.</p>
+              <p style={{ color: 'var(--text-medium)', lineHeight: 1.6 }}>Primero envia una solicitud y espera la aprobacion del otro perfil.</p>
             </div>
           ) : links.map((link) => (
             <div key={link.id} className="surface-card" style={{ padding: '18px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap', marginBottom: '14px' }}>
                 <div>
                   <h3 style={{ fontSize: '20px', fontWeight: 800, color: 'var(--text-dark)' }}>{link.target.displayName}</h3>
-                  <p style={{ color: 'var(--text-medium)', marginTop: '4px' }}>{link.target.profession || 'Sin profesión cargada'}</p>
+                  <p style={{ color: 'var(--text-medium)', marginTop: '4px' }}>{link.target.profession || 'Sin profesion cargada'}</p>
                 </div>
                 <div className="info-chip-row">
                   <span className="badge badge-accent">{link.target.manualStatus.replaceAll('_', ' ')}</span>
                   <span className={`badge ${link.target.isOnline ? 'badge-primary' : 'badge-secondary'}`}>{link.target.isOnline ? 'Activo ahora' : 'Sin presencia ahora'}</span>
-                  <button type="button" className="pill-button pill-button-secondary" onClick={() => void unlinkTarget(link.id)}>Desvincular</button>
+                  <button type="button" className="pill-button pill-button-secondary" onClick={() => void unlinkTarget(link.id)}>Revocar acceso</button>
                 </div>
               </div>
 
               <div className="monitor-grid">
                 <div className="monitor-tile">
                   <strong>Ubicacion actual</strong>
-                  <span>{link.location ? `${link.location.lat.toFixed(5)}, ${link.location.lng.toFixed(5)}` : 'La persona aun no compartio ubicación real'}</span>
+                  <span>{link.location ? `${link.location.lat.toFixed(5)}, ${link.location.lng.toFixed(5)}` : 'La persona aun no compartio ubicacion real'}</span>
                 </div>
                 <div className="monitor-tile">
                   <strong>Bateria</strong>
@@ -259,7 +387,7 @@ export default function MonitorHub() {
                     className="pill-button pill-button-primary"
                     style={{ textDecoration: 'none' }}
                   >
-                    <i className="fa-solid fa-location-arrow"></i> Abrir ubicación
+                    <i className="fa-solid fa-location-arrow"></i> Abrir ubicacion
                   </a>
                 </div>
               )}

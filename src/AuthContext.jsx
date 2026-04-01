@@ -145,6 +145,7 @@ async function apiFetch(path, options = {}) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', fullUrl, true);
+      xhr.withCredentials = true;
       
       // Set headers
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
@@ -189,6 +190,7 @@ async function apiFetch(path, options = {}) {
   const executeFetch = () => fetch(fullUrl, {
     ...options,
     headers,
+    credentials: options.credentials || 'include',
   });
 
   try {
@@ -202,6 +204,7 @@ async function apiFetch(path, options = {}) {
     if (!refreshPromise) {
       refreshPromise = fetch(apiUrl('/api/auth/refresh'), {
         method: 'POST',
+        credentials: 'include',
       })
         .then((refreshResponse) => refreshResponse.json().then((data) => ({ refreshResponse, data })))
         .then(({ refreshResponse, data }) => {
@@ -237,6 +240,7 @@ async function apiFetch(path, options = {}) {
     response = await fetch(fullUrl, {
       ...options,
       headers: retriedHeaders,
+      credentials: options.credentials || 'include',
     });
     console.log('[apiFetch] Retried response:', { status: response.status, ok: response.ok });
     return response;
@@ -537,18 +541,18 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const setVerificationDecision = async ({ userId, decisión, notes = '' }) => {
+  const setVerificationDecision = async ({ userId, decision, notes = '' }) => {
     try {
       const code = localStorage.getItem(STORAGE_KEYS.adminCode) || '';
-      const response = await apiFetch('/api/admin/verification-decisión', {
+      const response = await apiFetch('/api/admin/verification-decision', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'x-admin-code': code,
         },
-        body: JSON.stringify({ userId, decisión, notes }),
+        body: JSON.stringify({ userId, decision, notes }),
       });
-      const data = await parseJsonResponse(response, 'No se pudo guardar la decisión');
+      const data = await parseJsonResponse(response, 'No se pudo guardar la decision');
 
       if (user?.uid === String(userId)) {
         return syncSession({ user: data.user });
@@ -556,7 +560,7 @@ export function AuthProvider({ children }) {
 
       return data.user;
     } catch (error) {
-      throw new Error(explainApiFailure(error, 'No se pudo guardar la decisión'));
+      throw new Error(explainApiFailure(error, 'No se pudo guardar la decision'));
     }
   };
 
@@ -568,15 +572,23 @@ export function AuthProvider({ children }) {
     return syncSession({ user: data.user });
   };
 
-  const unlockAdmin = (code) => {
-    if (code.trim() !== 'matebudy-admin-uy') {
-      throw new Error('Código administrativo inválido');
+  const unlockAdmin = async (code) => {
+    const nextCode = code.trim();
+    if (!nextCode) {
+      throw new Error('Ingresa el código administrativo');
     }
 
+    const response = await apiFetch('/api/admin/access-check', {
+      headers: {
+        'x-admin-code': nextCode,
+      },
+    });
+    await parseJsonResponse(response, 'Código administrativo inválido');
+
     localStorage.setItem(STORAGE_KEYS.adminUnlocked, 'true');
-    localStorage.setItem(STORAGE_KEYS.adminCode, code.trim());
+    localStorage.setItem(STORAGE_KEYS.adminCode, nextCode);
     void setStoredItem(STORAGE_KEYS.adminUnlocked, 'true');
-    void setStoredItem(STORAGE_KEYS.adminCode, code.trim());
+    void setStoredItem(STORAGE_KEYS.adminCode, nextCode);
     setAdminUnlocked(true);
   };
 

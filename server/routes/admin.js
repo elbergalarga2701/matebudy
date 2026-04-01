@@ -1,6 +1,7 @@
 import db from '../db.js';
 
-const DEFAULT_ADMIN_CODE = process.env.ADMIN_PANEL_CODE || 'matebudy-admin-uy';
+const DEFAULT_ADMIN_CODE = process.env.ADMIN_PANEL_CODE || (process.env.NODE_ENV === 'production' ? '' : 'matebudy-admin-uy');
+const DEFAULT_FRONTEND_ORIGIN = process.env.APP_FRONTEND_URL || 'http://localhost:5173';
 
 function allAsync(sql, params = []) {
   return new Promise((resolve, reject) => {
@@ -62,7 +63,7 @@ function formatUser(row) {
 
 function requireAdminCode(req, res, next) {
   const code = req.headers['x-admin-code'];
-  if (!code || code !== DEFAULT_ADMIN_CODE) {
+  if (!DEFAULT_ADMIN_CODE || !code || code !== DEFAULT_ADMIN_CODE) {
     return res.status(403).json({ error: 'Codigo administrativo invalido' });
   }
 
@@ -70,6 +71,10 @@ function requireAdminCode(req, res, next) {
 }
 
 export const adminRoutes = (app) => {
+  app.get('/api/admin/access-check', requireAdminCode, async (req, res) => {
+    res.json({ success: true });
+  });
+
   app.get('/api/admin/verification-queue', requireAdminCode, async (req, res) => {
     try {
       const rows = await allAsync(
@@ -158,9 +163,9 @@ export const adminRoutes = (app) => {
         mpPublicKey: settings.mp_public_key || process.env.MP_PUBLIC_KEY || '',
         mpAccessToken: settings.mp_access_token || process.env.MP_ACCESS_TOKEN || '',
         mpWebhookUrl: settings.mp_webhook_url || process.env.MP_WEBHOOK_URL || '',
-        mpSuccessUrl: settings.mp_success_url || process.env.MP_SUCCESS_URL || 'http://localhost:5173/chat?payment=success',
-        mpPendingUrl: settings.mp_pending_url || process.env.MP_PENDING_URL || 'http://localhost:5173/chat?payment=pending',
-        mpFailureUrl: settings.mp_failure_url || process.env.MP_FAILURE_URL || 'http://localhost:5173/chat?payment=failure',
+        mpSuccessUrl: settings.mp_success_url || process.env.MP_SUCCESS_URL || `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=success`,
+        mpPendingUrl: settings.mp_pending_url || process.env.MP_PENDING_URL || `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=pending`,
+        mpFailureUrl: settings.mp_failure_url || process.env.MP_FAILURE_URL || `${DEFAULT_FRONTEND_ORIGIN}/#/chat?payment=failure`,
       });
     } catch (error) {
       res.status(500).json({ error: error.message });

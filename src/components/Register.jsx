@@ -57,7 +57,7 @@ export default function Register() {
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const { user, registerAccount, logout } = useAuth();
+  const { user, registerAccountWithIdentity, logout } = useAuth();
 
   useEffect(() => {
     if (error) setError('');
@@ -122,18 +122,25 @@ export default function Register() {
       return;
     }
 
+    if (!validateIdentityFields()) {
+      return;
+    }
+
     setLoading(true);
 
     try {
-      // Usar registro simple sin identidad por ahora
-      await registerAccount({
+      await registerAccountWithIdentity({
         name,
         email,
         password,
         role,
         avatar,
+        documentType,
+        documentNumber,
+        selfieFile,
+        documentFile,
       });
-      setSuccess('Cuenta creada exitosamente.');
+      setSuccess('Cuenta creada y enviada a revision de identidad.');
       setTimeout(() => navigate('/'), 900);
     } catch (err) {
       setError(err.message);
@@ -496,7 +503,7 @@ export default function Register() {
               <button
                 type="submit"
                 className="btn btn-primary btn-auth-main"
-                disabled={loading || !name || !email || !password || !confirm || password !== confirm}
+                disabled={loading || !name || !email || !password || !confirm || password !== confirm || !documentNumber.trim() || !selfieFile || !documentFile}
               >
                 {loading ? (
                   <>

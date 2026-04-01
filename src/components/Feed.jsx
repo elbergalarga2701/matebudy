@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../AuthContext';
-import { apiUrl } from '../api';
+import { apiUrl, publicFileUrl } from '../api';
 
 const MOODS = ['Comunidad', 'Recomendacion', 'Apoyo', 'Actividad'];
 
@@ -36,13 +36,14 @@ export default function Feed() {
 
   const resolveMediaUrl = (value) => {
     if (!value) return '';
-    if (/^https?:\/\//i.test(value)) return value;
-    if (value.startsWith('/uploads')) {
-      const isCapacitor = typeof window !== 'undefined' && window.location.protocol === 'capacitor:';
-      const socketUrl = isCapacitor ? 'https://matebudy.onrender.com' : (import.meta.env.VITE_SOCKET_URL || 'http://localhost:3000');
-      return `${socketUrl}${value}`;
-    }
+    if (value.startsWith('/uploads')) return publicFileUrl(value);
     return apiUrl(value);
+  };
+
+  const resolveAvatarUrl = (value) => {
+    if (!value) return '';
+    if (value.startsWith('/uploads')) return publicFileUrl(value);
+    return value;
   };
 
   const loadPosts = async () => {
@@ -238,7 +239,7 @@ export default function Feed() {
           <section className="social-composer">
             <div className="social-composer-head">
               {user?.avatar ? (
-                <img src={user.avatar} alt={user.displayName || 'Perfil'} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
+                <img src={resolveAvatarUrl(user.avatar)} alt={user.displayName || 'Perfil'} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
               ) : (
                 <div className="feed-avatar-fallback social-user-avatar">
                   {(user?.displayName || 'U').charAt(0).toUpperCase()}
@@ -298,7 +299,7 @@ export default function Feed() {
                 <div className="social-post-header">
                   <div className="social-post-author">
                     {post.authorAvatar ? (
-                      <img src={post.authorAvatar} alt={post.author} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
+                      <img src={resolveAvatarUrl(post.authorAvatar)} alt={post.author} className="avatar-ring social-user-avatar" style={{ objectFit: 'cover' }} />
                     ) : (
                       <div className="feed-avatar-fallback social-user-avatar">{post.author.charAt(0).toUpperCase()}</div>
                     )}

@@ -1,7 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { getNotificationPermissionState, requestMatebudyNotifications } from '../notifications';
+import { apiUrl, publicFileUrl } from '../api';
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -48,6 +49,8 @@ export default function Profile() {
   }));
   const navigate = useNavigate();
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
+  const [incomingMonitorRequests, setIncomingMonitorRequests] = useState([]);
+  const [monitorRequestsLoading, setMonitorRequestsLoading] = useState(false);
   const STATUS_OPTIONS = [
     { value: 'en_línea', label: 'En línea' },
     { value: 'ocupado', label: 'Ocupado' },
@@ -58,6 +61,11 @@ export default function Profile() {
     () => Object.entries(profileForm.profileAnswers || {}),
     [profileForm.profileAnswers],
   );
+
+  const authHeaders = useMemo(() => {
+    const token = localStorage.getItem('mate_token');
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  }, [user?.uid]);
 
   const handleSave = async () => {
     if (isReadOnly) return;
@@ -136,7 +144,69 @@ export default function Profile() {
     }));
   };
 
-  const currentAvatar = profileForm.avatar || sourceProfile?.avatar || '';
+  useEffect(() => {
+    if (isReadOnly || !user?.uid) return undefined;
+
+    let cancelled = false;
+
+    const loadMonitorRequests = async () => {
+      setMonitorRequestsLoading(true);
+      try {
+        const response = await fetch(apiUrl('/api/users/monitor-link-requests'), {
+          headers: {
+            ...authHeaders,
+          },
+          credentials: 'include',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || 'No se pudieron cargar las solicitudes de monitoreo');
+        if (!cancelled) {
+          setIncomingMonitorRequests(data.incoming || []);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setToast(error.message);
+        }
+      } finally {
+        if (!cancelled) {
+          setMonitorRequestsLoading(false);
+        }
+      }
+    };
+
+    void loadMonitorRequests();
+    return () => {
+      cancelled = true;
+    };
+  }, [authHeaders, isReadOnly, user?.uid]);
+
+  const respondToMonitorRequest = async (requestId, action) => {
+    if (isReadOnly) return;
+
+    try {
+      const response = await fetch(apiUrl(`/api/users/monitor-link-requests/${requestId}/${action}`), {
+        method: 'POST',
+        headers: {
+          ...authHeaders,
+        },
+        credentials: 'include',
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'No se pudo responder la solicitud');
+
+      setIncomingMonitorRequests((prev) => prev.filter((entry) => entry.id !== requestId));
+      setToast(action === 'approve' ? 'Solicitud de monitoreo aprobada' : 'Solicitud de monitoreo rechazada');
+      setTimeout(() => setToast(''), 2500);
+    } catch (error) {
+      setToast(error.message || 'No se pudo responder la solicitud');
+      setTimeout(() => setToast(''), 2500);
+    }
+  };
+
+  const currentAvatar = (() => {
+    const value = profileForm.avatar || sourceProfile?.avatar || '';
+    return value.startsWith('/uploads') ? publicFileUrl(value) : value;
+  })();
   const profileStats = isReadOnly
     ? [
         { icon: 'fa-solid fa-briefcase', value: viewedProfile?.completedServices || 0, label: 'Servicios registrados', color: 'var(--success)' },
@@ -364,6 +434,45 @@ export default function Profile() {
           {!isReadOnly && (
             <div className="neu-card-sm">
               <h3 className="profile-section-title">
+                <i className="fa-solid fa-user-shield" style={{ color: 'var(--primary)' }}></i>
+                Solicitudes de monitoreo
+              </h3>
+              <p className="profile-description">
+                Ninguna cuenta puede acceder a tu ubicacion, bateria o presencia sin tu aprobacion explicita.
+              </p>
+              {monitorRequestsLoading ? (
+                <div className="info-note" style={{ marginTop: '12px' }}>
+                  <i className="fa-solid fa-spinner fa-spin"></i> Cargando solicitudes...
+                </div>
+              ) : incomingMonitorRequests.length ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                  {incomingMonitorRequests.map((request) => (
+                    <div key={request.id} className="profile-answer-card">
+                      <strong>{request.user?.name || 'Monitor'}</strong>
+                      <span>{request.user?.profession || request.user?.role || 'Cuenta monitor'}</span>
+                      {request.note && <span>{request.note}</span>}
+                      <div className="info-chip-row" style={{ marginTop: '10px' }}>
+                        <button type="button" className="pill-button pill-button-primary" onClick={() => void respondToMonitorRequest(request.id, 'approve')}>
+                          Aprobar
+                        </button>
+                        <button type="button" className="pill-button pill-button-secondary" onClick={() => void respondToMonitorRequest(request.id, 'reject')}>
+                          Rechazar
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="info-note" style={{ marginTop: '12px' }}>
+                  <i className="fa-solid fa-shield"></i> No tienes solicitudes pendientes.
+                </div>
+              )}
+            </div>
+          )}
+
+          {!isReadOnly && (
+            <div className="neu-card-sm">
+              <h3 className="profile-section-title">
                 <i className="fa-solid fa-bell" style={{ color: 'var(--primary)' }}></i>
                 Notificaciones
               </h3>
@@ -438,17 +547,6 @@ export default function Profile() {
           <button onClick={handleLogout} className="btn-danger">
             <i className={`fa-solid ${isReadOnly ? 'fa-arrow-left' : 'fa-right-from-bracket'}`}></i> {isReadOnly ? 'Volver al mapa' : 'Cerrar sesión'}
           </button>
-
-          {!isReadOnly && (
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => navigate('/admin')}
-              style={{ marginTop: '8px', fontSize: '13px', padding: '10px 16px' }}
-            >
-              <i className="fa-solid fa-user-shield"></i> Panel de revisión
-            </button>
-          )}
         </div>
       </div>
     </div>

@@ -2,12 +2,8 @@ import db from '../db.js';
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-import { fileURLToPath } from 'url';
 import { verifyToken } from './auth.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const uploadsDir = path.resolve(__dirname, process.env.UPLOADS_DIR || '../../uploads');
+import { uploadsDir } from '../paths.js';
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });

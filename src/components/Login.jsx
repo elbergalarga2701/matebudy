@@ -28,7 +28,12 @@ export default function Login() {
       await login(email, password);
       navigate('/');
     } catch (err) {
-      setError('Credenciales inválidas. Revisa tu correo y tu contraseña.');
+      const message = String(err?.message || '').trim();
+      setError(
+        /credenciales inv/i.test(message)
+          ? 'Credenciales inválidas. Revisa tu correo y tu contraseña.'
+          : message || 'No se pudo iniciar sesión. Verifica el backend y vuelve a intentar.',
+      );
     }
 
     setLoading(false);

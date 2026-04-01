@@ -135,6 +135,22 @@ db.serialize(() => {
         FOREIGN KEY(target_user_id) REFERENCES users(id)
     )`);
 
+    db.run(`CREATE TABLE IF NOT EXISTS monitor_link_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        monitor_user_id INTEGER NOT NULL,
+        target_user_id INTEGER NOT NULL,
+        note TEXT,
+        status TEXT DEFAULT 'pending',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        responded_at DATETIME,
+        FOREIGN KEY(monitor_user_id) REFERENCES users(id),
+        FOREIGN KEY(target_user_id) REFERENCES users(id)
+    )`);
+
+    ensureColumn('monitor_link_requests', 'note', 'TEXT');
+    ensureColumn('monitor_link_requests', 'status', "TEXT DEFAULT 'pending'");
+    ensureColumn('monitor_link_requests', 'responded_at', 'DATETIME');
+
     db.run(`CREATE TABLE IF NOT EXISTS transactions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         client_id INTEGER,

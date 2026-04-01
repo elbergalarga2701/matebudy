@@ -178,11 +178,13 @@ paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
 
-// Serve static files - Render builds to project root dist/
+// Serve static files - Render builds to project root
 const possibleDistPaths = [
-  path.join(__dirname, '../dist'),  // Render project root
+  path.join(__dirname, '../dist'),  // /opt/render/project/src/dist
+  path.join(__dirname, '../../dist'), // One level up
+  path.join(__dirname, '../../../dist'), // Two levels up
+  path.join(process.cwd(), '../dist'),
   path.join(process.cwd(), 'dist'),
-  path.join(__dirname, 'dist'),
 ];
 let distPath = '';
 console.log('[Server] Checking dist paths:');

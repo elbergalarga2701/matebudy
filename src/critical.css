@@ -1,0 +1,32 @@
+/* Estilos críticos para la pantalla de carga */
+:root {
+  --primary: #0d8f68;
+  --primary-dark: #0a6f52;
+  --primary-light: #3bcf97;
+  --secondary: #17304a;
+  --secondary-light: #2b4b6c;
+  --bg: #f8f9fa;
+  --bg-white: #ffffff;
+  --accent: #f6b17a;
+  --accent-dark: #e89d5d;
+  --danger: #e74c3c;
+  --success: #27ae60;
+  --text-dark: #17304a;
+  --text-muted: #66788a;
+  --text-light: #a3afbb;
+  --border: #e0e6ea;
+  --shadow-neumorphic: 6px 6px 12px rgba(0, 0, 0, 0.08), -6px -6px 12px rgba(255, 255, 255, 0.9);
+  --shadow-neumorphic-inset: inset 4px 4px 8px rgba(0, 0, 0, 0.06), inset -4px -4px 8px rgba(255, 255, 255, 0.8);
+  --radius: 24px;
+  --radius-sm: 16px;
+  --radius-xs: 12px;
+  --font: 'Lexend', system-ui, -apple-system, sans-serif;
+  --nav-height: 80px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+body {
+  background: #f8f9fa;
+  margin: 0;
+  font-family: 'Lexend', system-ui, -apple-system, sans-serif;
+}

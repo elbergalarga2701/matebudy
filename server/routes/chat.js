@@ -1,8 +1,10 @@
 import db from '../db.js';
 import jwt from 'jsonwebtoken';
 import { verifyToken } from './auth.js';
+import { getJwtSecret } from '../config/security.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'matebudy_super_secret_key_mvp_only';
+// Obtener JWT_SECRET de forma segura
+const JWT_SECRET = getJwtSecret();
 const SERVICE_CHAT_ALLOWED_STATUSES = ['paid_retained', 'accepted', 'in_progress', 'released_manually'];
 
 function getAsync(sql, params = []) {

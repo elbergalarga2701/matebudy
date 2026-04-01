@@ -1,10 +1,23 @@
-import path from 'path';
-import { fileURLToPath } from 'url';
+/**
+ * Paths.js - Compatibilidad con código legacy
+ * Redirige a la configuración centralizada en config/paths.js
+ */
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+export {
+    projectRootDir as projectRoot,
+    projectRootDir as projectUploadsDir,
+    uploadsDir,
+    serverUploadsDir as legacyUploadsDir,
+    serverUploadsDir,
+    backupsDir,
+    logsDir,
+    dbPath,
+    apkPath,
+    ensureDirectories,
+    getPreferredUploadsDir,
+    getDatabasePath,
+    getApkPath,
+} from './config/paths.js';
 
-export const serverRoot = __dirname;
-export const projectRoot = path.resolve(serverRoot, '..');
-export const uploadsDir = path.resolve(serverRoot, process.env.UPLOADS_DIR || '../uploads');
-export const legacyUploadsDir = path.resolve(serverRoot, 'uploads');
+// Alias para compatibilidad
+export const serverRoot = globalThis.__dirname || process.cwd();

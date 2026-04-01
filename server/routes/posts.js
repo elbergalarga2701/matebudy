@@ -3,7 +3,11 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { verifyToken } from './auth.js';
-import { uploadsDir } from '../paths.js';
+import { legacyUploadsDir, projectUploadsDir, uploadsDir } from '../paths.js';
+
+const LEGACY_POST_IMAGE_DIRS = [uploadsDir, legacyUploadsDir, projectUploadsDir]
+  .filter(Boolean)
+  .filter((dir, index, array) => array.indexOf(dir) === index);
 
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
@@ -64,6 +68,88 @@ function runAsync(sql, params = []) {
   });
 }
 
+function safeUnlink(filePath) {
+  if (!filePath) return;
+  fs.unlink(filePath, () => {});
+}
+
+function fileExists(filePath) {
+  try {
+    return fs.existsSync(filePath);
+  } catch (error) {
+    return false;
+  }
+}
+
+function resolveLegacyUploadPath(uploadUrl) {
+  const fileName = path.basename(String(uploadUrl || ''));
+  if (!fileName) return null;
+
+  for (const dir of LEGACY_POST_IMAGE_DIRS) {
+    const candidate = path.join(dir, fileName);
+    if (fileExists(candidate)) {
+      return candidate;
+    }
+  }
+
+  return null;
+}
+
+function normalizePostImageUrl(value) {
+  if (!value) return '';
+  if (/^(data:|https?:|blob:)/i.test(String(value))) return value;
+
+  return String(value).startsWith('/uploads/') ? value : value;
+}
+
+function deleteStoredPostImage(value) {
+  if (!value || !String(value).startsWith('/uploads/')) return;
+  const filePath = resolveLegacyUploadPath(value);
+  safeUnlink(filePath);
+}
+
+async function toInlineDataUrl(file) {
+  if (!file?.path) return null;
+
+  const bytes = await fs.promises.readFile(file.path);
+  const mimeType = file.mimetype || 'image/jpeg';
+  safeUnlink(file.path);
+  return `data:${mimeType};base64,${bytes.toString('base64')}`;
+}
+
+function mimeTypeForImagePath(filePath) {
+  const extension = path.extname(String(filePath || '')).toLowerCase();
+
+  switch (extension) {
+    case '.png':
+      return 'image/png';
+    case '.webp':
+      return 'image/webp';
+    case '.gif':
+      return 'image/gif';
+    case '.avif':
+      return 'image/avif';
+    default:
+      return 'image/jpeg';
+  }
+}
+
+async function resolveHydratedPostImage(value) {
+  const normalized = normalizePostImageUrl(value);
+  if (!normalized) return '';
+  if (!String(normalized).startsWith('/uploads/')) return normalized;
+
+  const filePath = resolveLegacyUploadPath(normalized);
+  if (!filePath) return '';
+
+  try {
+    const bytes = await fs.promises.readFile(filePath);
+    return `data:${mimeTypeForImagePath(filePath)};base64,${bytes.toString('base64')}`;
+  } catch (error) {
+    return '';
+  }
+}
+
 async function hydratePosts(currentUserId) {
   const posts = await allAsync(
     `SELECT
@@ -121,7 +207,7 @@ async function hydratePosts(currentUserId) {
     return acc;
   }, {});
 
-  return posts.map((post) => ({
+  return Promise.all(posts.map(async (post) => ({
     id: String(post.id),
     authorId: String(post.user_id),
     author: post.author,
@@ -130,13 +216,13 @@ async function hydratePosts(currentUserId) {
     manualStatus: post.author_manual_status || 'en_linea',
     isOnline: Boolean(post.author_is_online),
     content: post.content,
-    imageUrl: post.image_url || '',
+    imageUrl: await resolveHydratedPostImage(post.image_url),
     mood: post.mood || 'Comunidad',
     likedByCount: Number(post.likes_count || 0),
     likedByMe: Boolean(post.liked_by_me),
     comments: commentsByPost[post.id] || [],
     createdAt: post.created_at,
-  }));
+  })));
 }
 
 export const postRoutes = (app) => {
@@ -157,14 +243,40 @@ export const postRoutes = (app) => {
         return res.status(400).json({ error: 'La publicacion necesita texto o imagen' });
       }
 
+      const imageValue = req.file ? await toInlineDataUrl(req.file) : null;
+
       await runAsync(
         `INSERT INTO posts (user_id, content, image_url, mood, created_at)
          VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)`,
-        [req.user.id, content, req.file ? `/uploads/${path.basename(req.file.path)}` : null, mood],
+        [req.user.id, content, imageValue, mood],
       );
 
       const posts = await hydratePosts(req.user.id);
       res.status(201).json({ post: posts[0] || null });
+    } catch (error) {
+      safeUnlink(req.file?.path);
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  app.delete('/api/posts/:postId', verifyToken, async (req, res) => {
+    try {
+      const existing = await getAsync('SELECT * FROM posts WHERE id = ?', [req.params.postId]);
+
+      if (!existing) {
+        return res.status(404).json({ error: 'Publicacion no encontrada' });
+      }
+
+      if (Number(existing.user_id) !== Number(req.user.id)) {
+        return res.status(403).json({ error: 'Solo puedes borrar tus propias publicaciones' });
+      }
+
+      await runAsync('DELETE FROM post_comments WHERE post_id = ?', [req.params.postId]);
+      await runAsync('DELETE FROM post_likes WHERE post_id = ?', [req.params.postId]);
+      await runAsync('DELETE FROM posts WHERE id = ?', [req.params.postId]);
+      deleteStoredPostImage(existing.image_url);
+
+      res.json({ success: true, postId: String(req.params.postId) });
     } catch (error) {
       res.status(500).json({ error: error.message });
     }

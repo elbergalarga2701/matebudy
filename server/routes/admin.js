@@ -80,7 +80,7 @@ export const adminRoutes = (app) => {
       const rows = await allAsync(
         `SELECT * FROM users
          WHERE verificationStatus = ?
-         ORDER BY created_at ASC`,
+         ORDER BY created_at ASC, id ASC`,
         ['under_review'],
       );
 
@@ -100,6 +100,12 @@ export const adminRoutes = (app) => {
 
       const currentUser = await getAsync('SELECT * FROM users WHERE id = ?', [userId]);
       if (!currentUser) return res.status(404).json({ error: 'Usuario no encontrado' });
+      if (currentUser.verificationStatus !== 'under_review') {
+        return res.status(409).json({
+          error: 'La identidad ya fue procesada por otra revision',
+          user: formatUser(currentUser),
+        });
+      }
 
       const nextProfileStatus = decision === 'approved'
         ? isMonitorRole(currentUser.role)
@@ -115,14 +121,15 @@ export const adminRoutes = (app) => {
         reviewedAt: new Date().toISOString(),
       });
 
-      await runAsync(
+      const updateResult = await runAsync(
         `UPDATE users
          SET isVerified = ?,
              verificationStatus = ?,
              profileStatus = ?,
              onboardingCompleted = ?,
              verificationReview = ?
-         WHERE id = ?`,
+         WHERE id = ?
+           AND verificationStatus = ?`,
         [
           decision === 'approved' ? 1 : 0,
           decision,
@@ -130,8 +137,17 @@ export const adminRoutes = (app) => {
           nextOnboarding,
           reviewPayload,
           userId,
+          'under_review',
         ],
       );
+
+      if (!updateResult.changes) {
+        const latestUser = await getAsync('SELECT * FROM users WHERE id = ?', [userId]);
+        return res.status(409).json({
+          error: 'La identidad ya fue procesada por otra revision',
+          user: formatUser(latestUser),
+        });
+      }
 
       const updated = await getAsync('SELECT * FROM users WHERE id = ?', [userId]);
       res.json({ success: true, user: formatUser(updated) });

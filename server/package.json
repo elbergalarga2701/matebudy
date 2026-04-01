@@ -1,12 +1,12 @@
 {
-  "name": "backend",
+  "name": "matebudy-server",
   "version": "1.0.0",
-  "description": "MateBudy Backend Server",
   "type": "module",
+  "description": "Matebudy Backend Server",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js"
+    "dev": "node --watch index.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
@@ -18,7 +18,10 @@
     "socket.io": "^4.7.4",
     "sqlite3": "^5.1.7"
   },
-  "devDependencies": {
-    "nodemon": "^3.0.2"
+  "optionalDependencies": {
+    "pg": "^8.11.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

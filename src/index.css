@@ -13,27 +13,27 @@
 }
 
 :root {
-  /* Colores Principales */
-  --primary: #6366f1;
-  --primary-light: #818cf8;
-  --primary-dark: #4f46e5;
-  --primary-glow: rgba(99, 102, 241, 0.4);
+  /* Colores Principales - VERDE */
+  --primary: #10b981;
+  --primary-light: #34d399;
+  --primary-dark: #059669;
+  --primary-glow: rgba(16, 185, 129, 0.4);
 
-  --secondary: #ec4899;
-  --secondary-light: #f472b6;
-  --secondary-dark: #db2777;
-  --secondary-glow: rgba(236, 72, 153, 0.4);
+  --secondary: #06b6d4;
+  --secondary-light: #22d3ee;
+  --secondary-dark: #0891b2;
+  --secondary-glow: rgba(6, 182, 212, 0.4);
 
-  --accent: #06b6d4;
-  --accent-light: #22d3ee;
-  --accent-dark: #0891b2;
+  --accent: #f59e0b;
+  --accent-light: #fbbf24;
+  --accent-dark: #d97706;
 
-  /* Gradientes */
-  --gradient-primary: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
-  --gradient-secondary: linear-gradient(135deg, #ec4899 0%, #f472b6 100%);
-  --gradient-accent: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%);
+  /* Gradientes - VERDE */
+  --gradient-primary: linear-gradient(135deg, #10b981 0%, #34d399 100%);
+  --gradient-secondary: linear-gradient(135deg, #06b6d4 0%, #22d3ee 100%);
+  --gradient-accent: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   --gradient-sunset: linear-gradient(135deg, #f59e0b 0%, #ec4899 100%);
-  --gradient-ocean: linear-gradient(135deg, #6366f1 0%, #06b6d4 100%);
+  --gradient-ocean: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
   --gradient-success: linear-gradient(135deg, #10b981 0%, #34d399 100%);
   --gradient-warning: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
   --gradient-danger: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
@@ -42,9 +42,9 @@
   --bg-main: #fafbff;
   --bg-secondary: #f1f5f9;
   --bg-card: #ffffff;
-  --bg-card-hover: #f8fafc;
+  --bg-card-hover: #f0fdf4;
   --bg-glass: rgba(255, 255, 255, 0.85);
-  --bg-gradient: linear-gradient(180deg, #fafbff 0%, #e0e7ff 100%);
+  --bg-gradient: linear-gradient(180deg, #fafbff 0%, #d1fae5 100%);
 
   /* Textos */
   --text-primary: #1e293b;

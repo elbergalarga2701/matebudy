@@ -103,7 +103,7 @@ export default function Login() {
 
         <section className="auth-card animate-scale">
           <div className="auth-brand-row">
-            <div className="auth-logo">M</div>
+            <div className="auth-logo">Matebudy</div>
             <div>
               <span className="auth-kicker">Iniciar Sesion</span>
               <h2 className="auth-title">Vuelve a entrar</h2>

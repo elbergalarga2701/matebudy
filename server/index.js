@@ -58,6 +58,8 @@ const allowedOrigins = [
   'capacitor://localhost',
   'ionic://localhost',
   'http://localhost',
+  'https://matebudy.onrender.com',
+  'https://matebudy-1.onrender.com',
   ...parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
 ];
 

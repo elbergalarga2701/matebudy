@@ -66,19 +66,7 @@ const allowedOrigins = [
 ];
 
 const corsOptions = {
-  origin(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    if (process.env.NODE_ENV === 'development') {
-      callback(null, true);
-      return;
-    }
-
-    callback(new Error(`Origen no permitido por CORS: ${origin}`));
-  },
+  origin: true, // Allow all origins in production - Render handles this
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'x-admin-code'],

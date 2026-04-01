@@ -166,39 +166,23 @@ paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
 
-// Serve static files - Render builds to /opt/render/project/src/dist
-const projectRoot = '/opt/render/project/src';
-const possibleDistPaths = [
-  path.join(projectRoot, 'dist'),
-  path.join(__dirname, '../dist'),
-  path.join(process.cwd(), 'dist'),
-  path.join(__dirname, 'dist'),
-];
+// Serve static files - Hardcode for Render environment
+const isRender = process.env.RENDER === 'true' || process.env.RENDER_EXTERNAL_URL;
+const distPath = isRender ? '/opt/render/project/src/dist' : path.join(__dirname, '../dist');
 
-let distPath = '';
-console.log('[Server] __dirname:', __dirname);
-console.log('[Server] process.cwd():', process.cwd());
-console.log('[Server] Checking dist paths:');
+console.log('[Server] Running on Render:', isRender);
+console.log('[Server] Using dist path:', distPath);
 
-for (const p of possibleDistPaths) {
-  const fullPath = path.join(p, 'index.html');
-  const exists = fs.existsSync(fullPath);
-  console.log(`  ${fullPath} -> ${exists ? 'EXISTS' : 'NOT FOUND'}`);
-  if (exists && !distPath) {
-    distPath = p;
-  }
-}
-
-if (distPath) {
-  console.log('[Server] Using dist path:', distPath);
+if (fs.existsSync(path.join(distPath, 'index.html'))) {
+  console.log('[Server] Frontend found at:', distPath);
   app.use(express.static(distPath));
   app.get('*', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 } else {
-  console.log('[Server] WARNING: No dist path found!');
+  console.log('[Server] WARNING: No frontend found at:', distPath);
   app.get('*', (req, res) => {
-    res.status(500).json({ error: 'Frontend no encontrado' });
+    res.status(500).send('Frontend no encontrado');
   });
 }
 

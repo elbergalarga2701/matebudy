@@ -178,10 +178,30 @@ paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
 
-// Serve React app for all other routes
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, '../dist/index.html'));
-});
+// Serve static files - try multiple paths for Render compatibility
+const possibleDistPaths = [
+  path.join(__dirname, 'dist'),
+  path.join(__dirname, '../dist'),
+  path.join(__dirname, '../dist'),
+];
+let distPath = '';
+for (const p of possibleDistPaths) {
+  if (fs.existsSync(path.join(p, 'index.html'))) {
+    distPath = p;
+    break;
+  }
+}
+
+if (distPath) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  app.get('*', (req, res) => {
+    res.status(500).json({ error: 'Frontend no encontrado' });
+  });
+}
 
 httpServer.listen(PORT, HOST, () => {
   console.log(`Server running on http://${HOST}:${PORT}`);

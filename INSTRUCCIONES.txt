@@ -1,0 +1,18 @@
+PARA CORRER LA APP:
+
+Opción 1 - Todo automático (RECOMENDADA):
+npm run dev
+
+Esto abre backend y frontend juntos.
+
+Si dice "Puerto 3000 ocupado":
+npm run fix
+
+Opción 2 - Por partes:
+Terminal 1: npm run backend
+Terminal 2: npm run frontend
+
+Para probar en celular:
+1. Asegúrate que PC y celular están en la misma WiFi
+2. Busca la IP que muestra Vite (ej: http://192.168.1.5:5173)
+3. Abre esa URL en tu celular

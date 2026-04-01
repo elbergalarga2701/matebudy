@@ -1,9 +1,13 @@
 services:
+  # Backend API (Node.js)
   - type: web
     name: matebudy-backend
     env: node
+    region: virginia
+    plan: free
     buildCommand: npm install --include=dev
     startCommand: npm start
+    healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
         value: production
@@ -12,12 +16,43 @@ services:
       - key: JWT_REFRESH_SECRET
         generateValue: true
       - key: ADMIN_PANEL_CODE
-        value: matebudy-admin-uy
+        value: matebudy-admin-uy-2026
       - key: CORS_ALLOWED_ORIGINS
-        value: "https://matebudy.onrender.com,https://matebudy-1.onrender.com"
+        value: "https://matebudy.onrender.com,https://matebudy-1.onrender.com,https://matebudy.vercel.app"
       - key: APP_FRONTEND_URL
         value: https://matebudy-1.onrender.com
       - key: AUTH_COOKIE_SAMESITE
         value: none
       - key: UPLOADS_DIR
         value: ./uploads
+      - key: DATABASE_URL
+        value: sqlite://./matebudy.sqlite
+      - key: BACKUP_ENABLED
+        value: "true"
+      - key: LOG_LEVEL
+        value: info
+
+  # Frontend Static Site
+  - type: static
+    name: matebudy-frontend
+    env: static
+    region: virginia
+    plan: free
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://matebudy.onrender.com
+      - key: VITE_SOCKET_URL
+        value: https://matebudy.onrender.com
+      - key: VITE_UPDATE_URL
+        value: https://matebudy.onrender.com/update.json
+      - key: NODE_ENV
+        value: production
+
+# Grupos de variables de entorno (opcional)
+envVarGroups:
+  - name: production-common
+    envVars:
+      - key: NODE_ENV
+        value: production

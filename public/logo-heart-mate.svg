@@ -1,0 +1,61 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Matebudy logo</title>
+  <desc id="desc">Un mate dentro de un corazon</desc>
+  <defs>
+    <linearGradient id="heartFill" x1="0%" x2="100%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#17304a" />
+      <stop offset="55%" stop-color="#0d8f68" />
+      <stop offset="100%" stop-color="#3bcf97" />
+    </linearGradient>
+    <linearGradient id="mateFill" x1="50%" x2="50%" y1="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffd089" />
+      <stop offset="100%" stop-color="#ee9e49" />
+    </linearGradient>
+  </defs>
+
+  <path
+    d="M256 454c-7 0-13-2-18-6C126 371 64 309 64 211c0-66 48-119 109-119 39 0 63 19 83 43 20-24 44-43 83-43 61 0 109 53 109 119 0 98-62 160-174 237-5 4-11 6-18 6Z"
+    fill="url(#heartFill)"
+  />
+
+  <path
+    d="M334 112c17 0 29 13 29 30 0 14-8 26-20 31l-28-61c6 0 12 0 19 0Z"
+    fill="#d9f7ea"
+    opacity="0.9"
+  />
+
+  <path
+    d="M204 183h104c14 0 25 11 23 25l-12 108c-5 43-28 71-63 71s-58-28-63-71l-12-108c-2-14 9-25 23-25Z"
+    fill="url(#mateFill)"
+    stroke="#17304a"
+    stroke-width="18"
+    stroke-linejoin="round"
+  />
+
+  <path
+    d="M205 220c18-11 35-16 51-16s33 5 51 16"
+    fill="none"
+    stroke="#76bf4c"
+    stroke-width="20"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M294 104c14-20 32-23 48-16"
+    fill="none"
+    stroke="#dce6eb"
+    stroke-width="18"
+    stroke-linecap="round"
+  />
+
+  <path
+    d="M318 86 276 232"
+    fill="none"
+    stroke="#cfd8dd"
+    stroke-width="16"
+    stroke-linecap="round"
+  />
+
+  <circle cx="229" cy="270" r="8" fill="#17304a" opacity="0.2" />
+  <circle cx="280" cy="286" r="7" fill="#17304a" opacity="0.16" />
+</svg>

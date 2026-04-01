@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  matebudy:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: matebudy-server
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - HOST=0.0.0.0
+      # Secrets - Cambiar en producción
+      - JWT_SECRET=${JWT_SECRET:-change-me-in-production}
+      - JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET:-change-me-in-production}
+      - ADMIN_PANEL_CODE=${ADMIN_PANEL_CODE:-change-me-in-production}
+      # CORS
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS:-http://localhost:3000}
+      # Base de datos (opcional, usa SQLite por defecto)
+      - DATABASE_URL=${DATABASE_URL:-sqlite://./matebudy.sqlite}
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - LOG_FILE=/app/logs/server.log
+      # Backups
+      - BACKUP_ENABLED=true
+      - BACKUP_INTERVAL_HOURS=12
+    volumes:
+      # Persistir datos de SQLite
+      - matebudy-data:/app
+      # Persistir uploads
+      - matebudy-uploads:/app/uploads
+      # Persistir logs
+      - matebudy-logs:/app/logs
+      # Persistir backups
+      - matebudy-backups:/app/backups
+    networks:
+      - matebudy-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  # PostgreSQL (opcional, descomentar para usar en lugar de SQLite)
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: matebudy-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_USER=matebudy
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-change-me}
+  #     - POSTGRES_DB=matebudy
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   networks:
+  #     - matebudy-network
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U matebudy"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 5
+
+volumes:
+  matebudy-data:
+  matebudy-uploads:
+  matebudy-logs:
+  matebudy-backups:
+  # postgres-data:
+
+networks:
+  matebudy-network:
+    driver: bridge

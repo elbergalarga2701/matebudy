@@ -136,6 +136,7 @@ const configuredOrigins = [
   'https://127.0.0.1:5173',
   'capacitor://localhost',
   'ionic://localhost',
+  'file://',
   'https://matebudy.onrender.com',
   'https://matebudy-1.onrender.com',
   ...parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
@@ -145,7 +146,11 @@ const allowAllOrigins = configuredOrigins.includes('*');
 const allowedOrigins = [...new Set(configuredOrigins.filter((origin) => origin && origin !== '*'))];
 
 function isOriginAllowed(origin) {
-  if (!origin) return true; // Permitir si no hay origin (peticiones same-origin)
+  if (!origin) return true;
+  // Permitir capacitor y file:// para APK
+  if (origin.startsWith('capacitor://') || origin.startsWith('ionic://') || origin.startsWith('file://')) {
+    return true;
+  }
   return allowAllOrigins || allowedOrigins.includes(origin);
 }
 

@@ -66,40 +66,41 @@ export function createRateLimiter({
 
 /**
  * Rate limiters preconfigurados para casos comunes
+ * NOTA: Uruguay tiene 3 millones de personas - limites muy altos
  */
 export const rateLimiters = {
-  // General para todas las rutas - MAS PERMISIVO para APK
+  // General para todas las rutas - CASI SIN LIMITES (Uruguay!)
   general: createRateLimiter({
-    windowMs: 15 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '500', 10),
+    windowMs: 60 * 60 * 1000, // 1 hora
+    maxRequests: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '10000', 10),
     message: 'Demasiadas peticiones desde tu IP',
   }),
 
-  // Login más estricto
+  // Login - solo para evitar ataques bruteforce
   login: createRateLimiter({
     windowMs: 15 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_MAX || '20', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_LOGIN_MAX || '100', 10),
     message: 'Demasiados intentos de inicio de sesión',
   }),
 
-  // Registro moderado
+  // Registro - solo para evitar spam
   register: createRateLimiter({
     windowMs: 60 * 60 * 1000,
-    maxRequests: parseInt(process.env.RATE_LIMIT_REGISTER_MAX || '30', 10),
+    maxRequests: parseInt(process.env.RATE_LIMIT_REGISTER_MAX || '100', 10),
     message: 'Demasiados registros desde tu IP',
   }),
 
-  // API endpoints - MAS PERMISIVO
+  // API endpoints - SIN LIMITES REALES
   api: createRateLimiter({
-    windowMs: 15 * 60 * 1000,
-    maxRequests: 500,
+    windowMs: 60 * 60 * 1000, // 1 hora
+    maxRequests: 10000,
     message: 'Demasiadas peticiones a la API',
   }),
 
-  // Upload de archivos
+  // Upload de archivos - limite alto
   upload: createRateLimiter({
     windowMs: 60 * 60 * 1000,
-    maxRequests: 50,
+    maxRequests: 200,
     message: 'Demasiados archivos subidos',
   }),
 };

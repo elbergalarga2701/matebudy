@@ -31,17 +31,14 @@ function joinBaseAndPath(base, path) {
 function isNativePlatform() {
   if (typeof window === 'undefined') return false;
 
-  // Capacitor native platform check
   if (window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:') {
     return true;
   }
 
-  // Android WebView detection
   if (/Android/i.test(window.navigator.userAgent || '')) {
     return true;
   }
 
-  // Check for Capacitor/Cordova objects
   if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform()) {
     return true;
   }
@@ -54,7 +51,6 @@ function isNativePlatform() {
 }
 
 function resolveApiBase() {
-  // Environment variable takes precedence
   const envApiBase = stripTrailingSlash(import.meta.env.VITE_API_URL);
   if (envApiBase) {
     return envApiBase;
@@ -64,7 +60,6 @@ function resolveApiBase() {
     return RENDER_BACKEND;
   }
 
-  // Native platforms (Capacitor/Android WebView) always use Render backend
   if (isNativePlatform()) {
     console.log('[api.js] Native platform detected, using Render backend');
     return RENDER_BACKEND;
@@ -72,8 +67,7 @@ function resolveApiBase() {
 
   const { protocol, hostname, port, origin } = window.location;
   const isLocalDevServer = (hostname === 'localhost' || hostname === '127.0.0.1') && port === '5173';
-  const renderBackendHost = new URL(RENDER_BACKEND).hostname;
-  const isSeparateRenderFrontend = hostname.endsWith('.onrender.com') && hostname !== renderBackendHost;
+  const isSeparateRenderFrontend = hostname.endsWith('.onrender.com') && hostname !== 'matebudy.onrender.com';
 
   if (isLocalDevServer) {
     return LOCAL_BACKEND;

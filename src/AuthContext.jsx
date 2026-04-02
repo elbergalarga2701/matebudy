@@ -157,18 +157,20 @@ async function apiFetch(path, options = {}) {
   const isFormData = options.body instanceof FormData;
   const fullUrl = apiUrl(path);
 
-  console.log('[apiFetch] Request:', { url: fullUrl, method: options.method, isFormData });
+  console.log('[apiFetch] Request:', { url: fullUrl, method: options.method, isFormData, isCapacitor });
 
-  // Para Capacitor, usar XMLHttpRequest para evitar problemas de CORS en Android WebView
-  if (isCapacitor && !isFormData) {
+  // Para Capacitor/Android nativo, usar XMLHttpRequest
+  if (isCapacitor) {
     return new Promise((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', fullUrl, true);
-      xhr.withCredentials = true;
+      xhr.timeout = 30000;
 
       // Set headers
-      if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-      if (options.headers) {
+      if (token && !isFormData) {
+        xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+      }
+      if (options.headers && !isFormData) {
         Object.keys(options.headers).forEach(key => {
           xhr.setRequestHeader(key, options.headers[key]);
         });
@@ -178,19 +180,40 @@ async function apiFetch(path, options = {}) {
         const response = {
           ok: xhr.status >= 200 && xhr.status < 300,
           status: xhr.status,
-          json: () => Promise.resolve(JSON.parse(xhr.responseText)),
+          json: () => {
+            try {
+              return Promise.resolve(JSON.parse(xhr.responseText));
+            } catch (e) {
+              return Promise.reject(new Error('Respuesta invalida del servidor'));
+            }
+          },
           text: () => Promise.resolve(xhr.responseText),
         };
-        console.log('[apiFetch] Response:', { status: xhr.status, ok: response.ok, url: fullUrl });
+        console.log('[apiFetch] XHR Response:', { status: xhr.status, ok: response.ok });
         resolve(response);
       };
 
       xhr.onerror = function () {
         console.error('[apiFetch] XHR error:', { url: fullUrl, status: xhr.status });
-        reject(new Error('No se pudo conectar con el servidor'));
+        reject(new Error('No se pudo conectar con el servidor. Verifica tu conexion a internet.'));
       };
 
-      xhr.send(options.body || null);
+      xhr.ontimeout = function () {
+        console.error('[apiFetch] XHR timeout:', { url: fullUrl });
+        reject(new Error('La conexion tardo demasiado. Verifica tu internet.'));
+      };
+
+      xhr.onabort = function () {
+        console.error('[apiFetch] XHR aborted:', { url: fullUrl });
+        reject(new Error('La peticion fue cancelada'));
+      };
+
+      try {
+        xhr.send(options.body || null);
+      } catch (sendError) {
+        console.error('[apiFetch] XHR send error:', sendError);
+        reject(new Error('Error al enviar la peticion'));
+      }
     });
   }
 

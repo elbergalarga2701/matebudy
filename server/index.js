@@ -69,6 +69,12 @@ const HOST = process.env.HOST || '0.0.0.0';
 const PORT = Number(process.env.PORT || 3000);
 const JSON_LIMIT = process.env.JSON_LIMIT || '10mb';
 const packageJsonPath = path.join(projectRoot, 'package.json');
+const DEFAULT_RAILWAY_APP_ORIGIN = 'https://matebudy.up.railway.app';
+const IS_HOSTED_PRODUCTION = Boolean(
+  (process.env.NODE_ENV || '').toLowerCase() === 'production'
+  || process.env.RAILWAY_PUBLIC_DOMAIN
+  || process.env.RAILWAY_STATIC_URL,
+);
 
 const appVersion = (() => {
   try {
@@ -82,9 +88,80 @@ const appVersion = (() => {
 
 const frontendIndexPath = path.join(projectRoot, 'dist', 'index.html');
 
+function stripTrailingSlash(value) {
+  return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function safeParseOrigin(value) {
+  try {
+    return new URL(String(value || ''));
+  } catch {
+    return null;
+  }
+}
+
+function isPrivateOrLocalHostname(hostname) {
+  const normalized = String(hostname || '').trim().toLowerCase();
+
+  if (!normalized) return true;
+  if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]') {
+    return true;
+  }
+
+  return (
+    /^10\./.test(normalized)
+    || /^192\.168\./.test(normalized)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
+  );
+}
+
+function sanitizePublicOrigin(value) {
+  const normalized = stripTrailingSlash(value);
+  if (!normalized) return '';
+
+  const parsed = safeParseOrigin(normalized);
+  if (!parsed || !/^https?:$/i.test(parsed.protocol)) {
+    return '';
+  }
+
+  if (IS_HOSTED_PRODUCTION) {
+    if (isPrivateOrLocalHostname(parsed.hostname) || parsed.hostname.endsWith('.onrender.com')) {
+      return '';
+    }
+  }
+
+  return normalized;
+}
+
+function joinOriginAndPath(origin, pathname) {
+  const normalizedOrigin = stripTrailingSlash(origin);
+  const normalizedPath = String(pathname || '').startsWith('/') ? String(pathname) : `/${pathname}`;
+  return `${normalizedOrigin}${normalizedPath}`;
+}
+
+function resolveRailwayOrigin() {
+  const staticUrl = sanitizePublicOrigin(process.env.RAILWAY_STATIC_URL);
+  if (staticUrl) return staticUrl;
+
+  const publicDomain = String(process.env.RAILWAY_PUBLIC_DOMAIN || '').trim();
+  if (publicDomain) {
+    return `https://${publicDomain.replace(/^https?:\/\//i, '').replace(/\/+$/, '')}`;
+  }
+
+  return DEFAULT_RAILWAY_APP_ORIGIN;
+}
+
+const localServerOrigin = `http://127.0.0.1:${PORT}`;
+const canonicalFrontendOrigin = sanitizePublicOrigin(process.env.APP_FRONTEND_URL)
+  || (IS_HOSTED_PRODUCTION ? resolveRailwayOrigin() : localServerOrigin);
+const publicApkUrl = joinOriginAndPath(canonicalFrontendOrigin, '/Matebudy.apk');
+
 function resolveFrontendBuildId() {
   if (process.env.APP_BUILD_ID) return process.env.APP_BUILD_ID;
-  if (process.env.RENDER_GIT_COMMIT) return process.env.RENDER_GIT_COMMIT;
+  if (process.env.RAILWAY_GIT_COMMIT_SHA) return process.env.RAILWAY_GIT_COMMIT_SHA;
+  if (process.env.RAILWAY_DEPLOYMENT_ID) return process.env.RAILWAY_DEPLOYMENT_ID;
+  if (process.env.SOURCE_COMMIT) return process.env.SOURCE_COMMIT;
+  if (process.env.GIT_COMMIT) return process.env.GIT_COMMIT;
 
   try {
     const stats = fs.statSync(frontendIndexPath);
@@ -137,8 +214,7 @@ const configuredOrigins = [
   'capacitor://localhost',
   'ionic://localhost',
   'file://',
-  'https://matebudy.onrender.com',
-  'https://matebudy-1.onrender.com',
+  canonicalFrontendOrigin,
   ...parseOrigins(process.env.CORS_ALLOWED_ORIGINS),
 ];
 
@@ -217,6 +293,7 @@ app.get('/api/health', (req, res) => {
     message: 'Backend running correctly',
     version: appVersion,
     buildId: resolveFrontendBuildId(),
+    frontendOrigin: canonicalFrontendOrigin,
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
   });
@@ -229,7 +306,7 @@ app.get('/update.json', (req, res) => {
     version: process.env.APP_VERSION || appVersion,
     buildId: resolveFrontendBuildId(),
     publishedAt: resolveFrontendPublishedAt(),
-    url: 'https://matebudy.onrender.com/Matebudy.apk',
+    url: publicApkUrl,
     notes: 'La app recargara automaticamente el frontend cuando detecte un parche nuevo.',
     priority: 'high',
     nativeUpdate: process.env.APP_NATIVE_UPDATE_REQUIRED === 'true',
@@ -312,6 +389,7 @@ httpServer.listen(PORT, HOST, () => {
     port: PORT,
     environment: process.env.NODE_ENV || 'development',
     cors: allowedOrigins,
+    frontendOrigin: canonicalFrontendOrigin,
   });
 
   console.log(`

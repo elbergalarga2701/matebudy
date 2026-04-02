@@ -1,8 +1,16 @@
-const RENDER_BACKEND = 'https://matebudy.onrender.com';
+const RAILWAY_APP_ORIGIN = 'https://matebudy.up.railway.app';
 const LOCAL_BACKEND = 'http://127.0.0.1:3000';
 
 function stripTrailingSlash(value) {
   return String(value || '').trim().replace(/\/+$/, '');
+}
+
+function safeParseUrl(value) {
+  try {
+    return new URL(String(value || ''));
+  } catch {
+    return null;
+  }
 }
 
 function hasExplicitOrigin(value) {
@@ -54,44 +62,81 @@ function isNativePlatform() {
   return false;
 }
 
-function resolveApiBase() {
-  // PARA APK: SIEMPRE usar Render, ignorar variables de entorno
-  if (isNativePlatform()) {
-    console.log('[api.js] NATIVE PLATFORM - Using Render backend');
-    return RENDER_BACKEND;
+function isPrivateOrLocalHostname(hostname) {
+  const normalized = String(hostname || '').trim().toLowerCase();
+
+  if (!normalized) return true;
+  if (normalized === 'localhost' || normalized === '127.0.0.1' || normalized === '::1' || normalized === '[::1]') {
+    return true;
   }
 
-  // Para web, verificar entorno
-  const envApiBase = stripTrailingSlash(import.meta.env.VITE_API_URL);
+  return (
+    /^10\./.test(normalized)
+    || /^192\.168\./.test(normalized)
+    || /^172\.(1[6-9]|2\d|3[0-1])\./.test(normalized)
+  );
+}
+
+function sanitizeConfiguredUrl(value) {
+  const normalized = stripTrailingSlash(value);
+  if (!normalized) return '';
+
+  const parsed = safeParseUrl(normalized);
+  if (!parsed || !/^https?:$/i.test(parsed.protocol)) {
+    return '';
+  }
+
+  if (import.meta.env.PROD) {
+    if (isPrivateOrLocalHostname(parsed.hostname)) {
+      return '';
+    }
+
+    if (parsed.hostname.endsWith('.onrender.com')) {
+      return '';
+    }
+  }
+
+  return normalized;
+}
+
+function getBrowserOrigin() {
+  if (typeof window === 'undefined') return '';
+  if (!/^https?:$/i.test(window.location.protocol)) return '';
+  return stripTrailingSlash(window.location.origin);
+}
+
+function resolveApiBase() {
+  const envApiBase = sanitizeConfiguredUrl(import.meta.env.VITE_API_URL);
   if (envApiBase) {
     return envApiBase;
   }
 
-  if (typeof window === 'undefined') {
-    return RENDER_BACKEND;
+  if (isNativePlatform()) {
+    console.log('[api.js] NATIVE PLATFORM - Using Railway backend');
+    return RAILWAY_APP_ORIGIN;
   }
 
-  const { protocol, hostname, port, origin } = window.location;
+  if (typeof window === 'undefined') {
+    return import.meta.env.PROD ? RAILWAY_APP_ORIGIN : LOCAL_BACKEND;
+  }
+
+  const { hostname, port } = window.location;
   const isLocalDevServer = (hostname === 'localhost' || hostname === '127.0.0.1') && port === '5173';
-  const isSeparateRenderFrontend = hostname.endsWith('.onrender.com') && hostname !== 'matebudy.onrender.com';
 
   if (isLocalDevServer) {
     return LOCAL_BACKEND;
   }
 
-  if (isSeparateRenderFrontend) {
-    return RENDER_BACKEND;
+  const browserOrigin = getBrowserOrigin();
+  if (browserOrigin) {
+    return browserOrigin;
   }
 
-  if (/^https?:$/i.test(protocol)) {
-    return origin;
-  }
-
-  return RENDER_BACKEND;
+  return import.meta.env.PROD ? RAILWAY_APP_ORIGIN : LOCAL_BACKEND;
 }
 
 function resolveSocketBase(apiBase) {
-  const envSocketBase = stripTrailingSlash(import.meta.env.VITE_SOCKET_URL);
+  const envSocketBase = sanitizeConfiguredUrl(import.meta.env.VITE_SOCKET_URL);
   if (envSocketBase) {
     return envSocketBase;
   }
@@ -99,12 +144,34 @@ function resolveSocketBase(apiBase) {
   return stripApiSuffix(apiBase);
 }
 
+function resolveAppOrigin(apiBase, socketBase) {
+  const browserOrigin = getBrowserOrigin();
+  if (!isNativePlatform() && browserOrigin) {
+    return browserOrigin;
+  }
+
+  return stripApiSuffix(socketBase || apiBase) || RAILWAY_APP_ORIGIN;
+}
+
+function resolveUpdateManifestUrl(appOrigin) {
+  const envUpdateUrl = sanitizeConfiguredUrl(import.meta.env.VITE_UPDATE_URL);
+  if (envUpdateUrl) {
+    return envUpdateUrl;
+  }
+
+  return joinBaseAndPath(appOrigin, '/update.json');
+}
+
 const computedApiBase = resolveApiBase();
 const computedSocketBase = resolveSocketBase(computedApiBase);
+const computedAppOrigin = resolveAppOrigin(computedApiBase, computedSocketBase);
+const computedUpdateManifestUrl = resolveUpdateManifestUrl(computedAppOrigin);
 
 console.log('[api.js] Configuration:', {
   apiBase: computedApiBase,
   socketBase: computedSocketBase,
+  appOrigin: computedAppOrigin,
+  updateManifestUrl: computedUpdateManifestUrl,
   isNative: isNativePlatform(),
 });
 
@@ -114,6 +181,18 @@ export function apiUrl(path) {
 
 export function socketUrl() {
   return computedSocketBase;
+}
+
+export function appOrigin() {
+  return computedAppOrigin;
+}
+
+export function updateManifestUrl() {
+  return computedUpdateManifestUrl;
+}
+
+export function runtimeIsNativePlatform() {
+  return isNativePlatform();
 }
 
 export function publicFileUrl(value) {

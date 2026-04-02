@@ -1,24 +1,40 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import packageJson from '../../package.json';
 import { useAuth } from '../AuthContext';
-import { forceAppReload, getNotificationPermissionState, requestMatebudyNotifications, sendMatebudyTestNotification } from '../notifications';
-import { apiUrl, publicFileUrl } from '../api';
-import { Capacitor } from '@capacitor/core';
+import { forceAppReload, getNotificationPermissionState, requestMatebudyNotifications } from '../notifications';
+import { publicFileUrl, runtimeIsNativePlatform, updateManifestUrl } from '../api';
 
-const UPDATE_JSON_URL = import.meta.env.VITE_UPDATE_URL || 'https://matebudy.onrender.com/update.json';
-const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+const UPDATE_JSON_URL = updateManifestUrl();
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || packageJson.version || '1.0.0';
+const BUILD_ID_STORAGE_KEY = 'matebudy:last-seen-build-id';
+const RELOAD_TOKEN_STORAGE_KEY = 'matebudy:last-reloaded-build-token';
 
 function parseVersion(version) {
   const parts = String(version || '0.0.0').split('.').map((value) => Number(value) || 0);
   return (parts[0] * 10000) + (parts[1] * 100) + (parts[2] || 0);
 }
 
-function isNativePlatform() {
-  if (typeof window === 'undefined') return false;
-  return Capacitor.isNativePlatform()
-    || window.location.protocol === 'capacitor:'
-    || window.location.protocol === 'ionic:'
-    || /Android/i.test(window.navigator.userAgent || '');
+function readStorage(storage, key) {
+  try {
+    return storage.getItem(key) || '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStorage(storage, key, value) {
+  try {
+    if (value) {
+      storage.setItem(key, value);
+    }
+  } catch {
+    // Ignore storage failures in restricted webviews.
+  }
+}
+
+function resolveReloadToken(updateInfo) {
+  return String(updateInfo?.buildId || updateInfo?.version || '').trim();
 }
 
 function fileToDataUrl(file) {
@@ -40,9 +56,10 @@ export default function Profile() {
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
   const [updateStatus, setUpdateStatus] = useState({ checking: false, available: false, version: '' });
   const viewedProfile = location.state?.profile || null;
-  const isReadOnly = Boolean(location.state?.readOnly && viewedProfile);
+  const isReadOnlyProfile = Boolean(viewedProfile);
 
-  const sourceProfile = isReadOnly ? viewedProfile : user;
+  // Si hay viewedProfile, mostrar ese perfil (modo solo lectura)
+  const sourceProfile = viewedProfile ? viewedProfile : user;
 
   const [profileForm, setProfileForm] = useState(() => ({
     displayName: sourceProfile?.displayName || '',
@@ -59,18 +76,13 @@ export default function Profile() {
     { value: 'fuera_de_linea', label: 'Ausente', icon: 'fa-solid fa-circle-pause' },
   ];
 
-  const authHeaders = useMemo(() => {
-    const token = localStorage.getItem('mate_token');
-    return token ? { Authorization: `Bearer ${token}` } : {};
-  }, [user?.uid]);
-
   const showToast = (message, timeout = 3000) => {
     setToast(message);
     window.setTimeout(() => setToast(''), timeout);
   };
 
   const handleSave = async () => {
-    if (isReadOnly) return;
+    if (isReadOnlyProfile) return;
 
     setSaving(true);
     try {
@@ -92,7 +104,7 @@ export default function Profile() {
   };
 
   const handleLogout = async () => {
-    if (isReadOnly) {
+    if (isReadOnlyProfile) {
       navigate(location.state?.from || '/mapa');
       return;
     }
@@ -108,7 +120,7 @@ export default function Profile() {
   };
 
   const handleQuickStatus = async (manualStatus) => {
-    if (isReadOnly) return;
+    if (isReadOnlyProfile) return;
     setProfileForm((prev) => ({ ...prev, manualStatus }));
     setSaving(true);
     try {
@@ -128,7 +140,7 @@ export default function Profile() {
   };
 
   const checkForUpdates = async () => {
-    if (!isNativePlatform()) {
+    if (!runtimeIsNativePlatform()) {
       showToast('Actualizaciones solo disponibles en la app movil');
       return;
     }
@@ -144,11 +156,25 @@ export default function Profile() {
       }
 
       const data = await res.json();
+      const previousBuildId = readStorage(window.localStorage, BUILD_ID_STORAGE_KEY);
+      const nextBuildId = String(data.buildId || '').trim();
+      const isVersionUpdate = parseVersion(data.version) > parseVersion(CURRENT_VERSION);
+      const isBuildUpdate = Boolean(nextBuildId && previousBuildId && nextBuildId !== previousBuildId);
 
-      if (data?.version && parseVersion(data.version) > parseVersion(CURRENT_VERSION)) {
+      if (nextBuildId) {
+        writeStorage(window.localStorage, BUILD_ID_STORAGE_KEY, nextBuildId);
+      }
+
+      if (data?.version && (isVersionUpdate || isBuildUpdate)) {
         setUpdateStatus({ checking: false, available: true, version: data.version });
         showToast(`Nueva version disponible: ${data.version}`);
-        window.location.reload();
+        const reloadToken = resolveReloadToken(data);
+        const lastReloadedToken = readStorage(window.sessionStorage, RELOAD_TOKEN_STORAGE_KEY);
+
+        if (reloadToken && reloadToken !== lastReloadedToken) {
+          writeStorage(window.sessionStorage, RELOAD_TOKEN_STORAGE_KEY, reloadToken);
+          await forceAppReload();
+        }
       } else {
         setUpdateStatus({ checking: false, available: false, version: '' });
         showToast('Ya tienes la ultima version');
@@ -176,7 +202,7 @@ export default function Profile() {
             </div>
           )}
 
-          {!isReadOnly && (
+          {!isReadOnlyProfile && (
             <label style={{
               position: 'absolute',
               bottom: '4px',
@@ -198,7 +224,7 @@ export default function Profile() {
           )}
         </div>
 
-        {editing && !isReadOnly ? (
+        {editing && !isReadOnlyProfile ? (
           <input
             type="text"
             value={profileForm.displayName}
@@ -231,7 +257,7 @@ export default function Profile() {
         </div>
 
         {/* Quick Status */}
-        {!isReadOnly && (
+        {!isReadOnlyProfile && (
           <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '20px', flexWrap: 'wrap' }}>
             {STATUS_OPTIONS.map((option) => (
               <button
@@ -288,7 +314,7 @@ export default function Profile() {
             <i className="fa-solid fa-user-pen" style={{ color: 'var(--primary)' }}></i>
             Informacion personal
           </h3>
-          {!isReadOnly && (
+          {!isReadOnlyProfile && (
             <button
               type="button"
               className="btn btn-secondary"
@@ -305,7 +331,7 @@ export default function Profile() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Profesion o enfoque</label>
-            {editing && !isReadOnly ? (
+            {editing && !isReadOnlyProfile ? (
               <input
                 type="text"
                 className="form-input"
@@ -320,7 +346,7 @@ export default function Profile() {
 
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Sobre mi</label>
-            {editing && !isReadOnly ? (
+            {editing && !isReadOnlyProfile ? (
               <textarea
                 className="form-input"
                 rows={4}
@@ -335,7 +361,7 @@ export default function Profile() {
 
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: 'var(--text-secondary)' }}>Tags (separados por coma)</label>
-            {editing && !isReadOnly ? (
+            {editing && !isReadOnlyProfile ? (
               <input
                 type="text"
                 className="form-input"
@@ -357,7 +383,7 @@ export default function Profile() {
           </div>
         </div>
 
-        {editing && !isReadOnly && (
+        {editing && !isReadOnlyProfile && (
           <div style={{ display: 'flex', gap: '12px', marginTop: '20px' }}>
             <button
               type="button"
@@ -383,7 +409,7 @@ export default function Profile() {
       </div>
 
       {/* Settings */}
-      {!isReadOnly && (
+      {!isReadOnlyProfile && (
         <div className="card" style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '18px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
             <i className="fa-solid fa-gear" style={{ color: 'var(--text-muted)' }}></i>
@@ -433,7 +459,7 @@ export default function Profile() {
       )}
 
       {/* Back Button for ReadOnly */}
-      {isReadOnly && (
+      {isReadOnlyProfile && (
         <button
           type="button"
           className="btn btn-primary"

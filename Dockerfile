@@ -13,20 +13,20 @@ WORKDIR /app
 # Copiar package files
 COPY package*.json ./
 
-# Instalar dependencias
-RUN npm ci --only=production
+# Instalar todas las dependencias (incluyendo devDependencies para el build)
+RUN npm install
 
 # Copiar el resto del código
 COPY . .
-
-# Copiar el script de generación de .env
-COPY scripts/generate-env.js ./scripts/
 
 # Crear directorios necesarios
 RUN mkdir -p uploads logs backups dist
 
 # Build del frontend
 RUN npm run build
+
+# Instalar dependencias del servidor
+RUN cd server && npm install
 
 # Exponer puerto
 EXPOSE 3000
@@ -47,4 +47,4 @@ RUN addgroup -g 1001 -S nodejs && \
 USER nodejs
 
 # Comando de inicio
-CMD ["node", "server/index.js"]
+CMD ["sh", "-c", "cd server && npm start"]

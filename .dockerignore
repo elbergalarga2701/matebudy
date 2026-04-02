@@ -1,0 +1,26 @@
+# Build artifacts regenerated inside Railway
+dist/
+node_modules/
+**/node_modules/
+
+# Local/mobile artifacts not needed for web/API deploys
+android/
+apk_analysis/
+apk_forensics/
+uploads/
+
+# Local runtime data
+server/backups/
+server/logs/
+server/apk_extracted/
+server/*.sqlite
+server/*.sqlite-*
+server/*.zip
+*.db
+*.log
+
+# Editor and local-only noise
+.git/
+.vscode/
+$null
+nul

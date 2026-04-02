@@ -12,7 +12,7 @@ const __dirname = path.dirname(__filename);
 
 // Verificar si se usa PostgreSQL o SQLite
 const databaseUrl = process.env.DATABASE_URL;
-const usePostgreSQL = databaseUrl && !databaseUrl.includes('sqlite');
+let usePostgreSQL = databaseUrl && !databaseUrl.includes('sqlite');
 
 let db;
 let dbType;

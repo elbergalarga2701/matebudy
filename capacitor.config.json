@@ -23,11 +23,11 @@
       "splashLayoutResourceName": "splash"
     },
     "Keyboard": {
-      "resize": "none",
+      "resize": "ionic",
       "style": "dark",
       "resizeOnFullScreen": true,
       "hideOnAccessoryBar": true,
-      "hideOnTap": true
+      "hideOnTap": false
     }
   }
 }

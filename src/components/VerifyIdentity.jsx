@@ -261,7 +261,7 @@ export default function VerifyIdentity() {
                 className="btn btn-secondary"
                 onClick={async () => {
                   await resetVerificationSubmission();
-                  navigate('/verificación', { replace: true });
+                  navigate('/verificacion', { replace: true });
                 }}
               >
                 <i className="fa-solid fa-rotate-right"></i> Reenviar documentos

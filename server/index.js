@@ -181,17 +181,32 @@ function resolveFrontendPublishedAt() {
 }
 
 function setStaticCacheHeaders(res, filePath) {
+  const normalizedPath = String(filePath || '').replace(/\\/g, '/').toLowerCase();
+
   if (
-    filePath.endsWith('index.html')
-    || filePath.endsWith('manifest.json')
-    || filePath.endsWith('service-worker.js')
-    || filePath.endsWith('.svg')
+    normalizedPath.endsWith('/index.html')
+    || normalizedPath.endsWith('/manifest.json')
+    || normalizedPath.endsWith('/service-worker.js')
+    || normalizedPath.endsWith('.svg')
   ) {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     return;
   }
 
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+}
+
+function shouldServeSpaIndex(reqPath) {
+  const normalizedPath = String(reqPath || '').split('?')[0];
+
+  if (!normalizedPath || normalizedPath === '/') return true;
+  if (normalizedPath.startsWith('/api/')) return false;
+  if (normalizedPath.startsWith('/uploads/')) return false;
+  if (normalizedPath === '/update.json' || normalizedPath === '/Matebudy.apk' || normalizedPath === '/matebudy.apk') {
+    return false;
+  }
+
+  return path.extname(normalizedPath) === '';
 }
 
 // =============================================================================
@@ -351,16 +366,20 @@ const distDir = path.join(projectRoot, 'dist');
 if (fs.existsSync(distDir)) {
   logger.info('Sirviendo frontend desde dist/', { distDir });
 
-  app.use((req, res, next) => {
-    const filePath = path.join(distDir, req.path);
-    setStaticCacheHeaders(res, filePath);
-    next();
-  });
-
-  app.use(express.static(distDir));
+  app.use(express.static(distDir, {
+    setHeaders: (res, filePath) => {
+      setStaticCacheHeaders(res, filePath);
+    },
+  }));
 
   // SPA fallback
-  app.get('*', (req, res) => {
+  app.get('*', (req, res, next) => {
+    if (!shouldServeSpaIndex(req.path)) {
+      next();
+      return;
+    }
+
+    setStaticCacheHeaders(res, path.join(distDir, 'index.html'));
     res.sendFile(path.join(distDir, 'index.html'));
   });
 } else {

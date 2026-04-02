@@ -13,7 +13,6 @@ import MonitorHub from './components/MonitorHub';
 import Profile from './components/Profile';
 import BottomNav from './components/BottomNav';
 import AutoUpdater from './components/AutoUpdater';
-import ConnectionTest from './components/ConnectionTest';
 
 function App() {
   const { user, loading } = useAuth();
@@ -60,7 +59,6 @@ function App() {
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AutoUpdater />
-      <ConnectionTest />
       <Routes>
         <Route path="/login" element={!user ? <Login /> : <Navigate to={authenticatedHomePath} replace />} />
         <Route path="/register" element={<Register />} />

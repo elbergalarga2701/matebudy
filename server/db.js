@@ -24,13 +24,18 @@ if (usePostgreSQL) {
     try {
         const { Pool } = await import('pg');
 
+        // Remover sslmode del connection string para evitar conflictos
+        let cleanDbUrl = databaseUrl;
+        if (cleanDbUrl && cleanDbUrl.includes('?')) {
+            const [baseUrl] = cleanDbUrl.split('?');
+            cleanDbUrl = baseUrl;
+        }
+
         const pool = new Pool({
-            connectionString: databaseUrl,
-            ssl: process.env.NODE_ENV === 'production' ? { 
+            connectionString: cleanDbUrl,
+            ssl: {
                 rejectUnauthorized: false,
-                requestCert: true,
-                rejectUnauthorized: false
-            } : false,
+            },
             max: 20,
             idleTimeoutMillis: 30000,
             connectionTimeoutMillis: 2000,

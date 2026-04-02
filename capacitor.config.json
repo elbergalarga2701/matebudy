@@ -24,7 +24,9 @@
     "Keyboard": {
       "resize": "body",
       "style": "dark",
-      "resizeOnFullScreen": true
+      "resizeOnFullScreen": true,
+      "hideOnAccessoryBar": true,
+      "hideOnTap": false
     }
   }
 }

@@ -18,6 +18,9 @@ function App() {
   const { user, loading } = useAuth();
   const location = useLocation();
   const isMonitor = user?.role === 'monitor';
+  const verifyRoute = '/verificacion';
+  const legacyVerifyRoute = '/verificaciÃ³n';
+
   console.log('[MateBudy] App render', {
     loading,
     hasUser: Boolean(user),
@@ -49,23 +52,31 @@ function App() {
             boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
           }}
         >
-          <span style={{
-            fontSize: '36px',
-            fontWeight: 800,
-            color: 'white',
-            fontFamily: 'var(--font)',
-          }}>M</span>
+          <span
+            style={{
+              fontSize: '36px',
+              fontWeight: 800,
+              color: 'white',
+              fontFamily: 'var(--font)',
+            }}
+          >
+            M
+          </span>
         </div>
         <div style={{ textAlign: 'center' }}>
-          <h1 style={{
-            fontSize: '28px',
-            fontWeight: 800,
-            background: 'var(--gradient-primary)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-            backgroundClip: 'text',
-            marginBottom: '8px',
-          }}>MateBudy</h1>
+          <h1
+            style={{
+              fontSize: '28px',
+              fontWeight: 800,
+              background: 'var(--gradient-primary)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+              backgroundClip: 'text',
+              marginBottom: '8px',
+            }}
+          >
+            MateBudy
+          </h1>
           <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font)', fontSize: '14px' }}>Cargando...</p>
         </div>
         <div
@@ -84,8 +95,9 @@ function App() {
 
   const mustVerify = Boolean(user) && !user.isVerified;
   const mustOnboard = Boolean(user) && user.isVerified && !isMonitor && !user.onboardingCompleted;
-  const authenticatedHomePath = mustVerify ? '/verificación' : mustOnboard ? '/bienvenida' : isMonitor ? '/monitor' : '/';
+  const authenticatedHomePath = mustVerify ? verifyRoute : mustOnboard ? '/bienvenida' : isMonitor ? '/monitor' : '/';
   const fallbackPath = user ? authenticatedHomePath : '/login';
+
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <AutoUpdater />
@@ -93,7 +105,7 @@ function App() {
         <Route path="/login" element={!user ? <Login /> : <Navigate to={authenticatedHomePath} replace />} />
         <Route path="/register" element={<Register />} />
         <Route
-          path="/verificación"
+          path={verifyRoute}
           element={
             user
               ? user.isVerified
@@ -102,12 +114,13 @@ function App() {
               : <Navigate to="/login" replace />
           }
         />
+        <Route path={legacyVerifyRoute} element={<Navigate to={verifyRoute} replace />} />
         <Route
           path="/bienvenida"
           element={
             user
               ? !user.isVerified
-                ? <Navigate to="/verificación" replace />
+                ? <Navigate to={verifyRoute} replace />
                 : isMonitor
                   ? <Navigate to="/monitor" replace />
                   : user.onboardingCompleted

@@ -49,10 +49,10 @@ export default function VerifyIdentity() {
   const isRejected = user?.verificationStatus === 'rejected';
 
   return (
-    <div className="auth-container">
+    <div className="auth-container verify-identity-shell" style={{ width: '100%', maxWidth: '100%', overflowX: 'hidden' }}>
       <div className="auth-bg auth-bg-modern"></div>
 
-      <div className="auth-shell auth-shell-wide">
+      <div className="auth-shell auth-shell-wide verify-identity-content" style={{ width: '100%', maxWidth: '100%', padding: '10px' }}>
         <section className="auth-hero-panel auth-hero-panel-compact">
           <span className="auth-kicker auth-kicker-dark">Seguridad</span>
           <h1 className="auth-hero-title">Verificamos identidad antes de abrir la app.</h1>
@@ -61,7 +61,7 @@ export default function VerifyIdentity() {
           </p>
         </section>
 
-        <section className="auth-card auth-card-wide auth-card-modern">
+        <section className="auth-card auth-card-wide auth-card-modern verify-identity-card" style={{ width: '100%', maxWidth: '100%', boxSizing: 'border-box', padding: '20px' }}>
         <div className="auth-header">
           <div className="auth-brand-row">
             <div className="auth-logo auth-logo-modern">
@@ -161,8 +161,8 @@ export default function VerifyIdentity() {
                 <span>Necesitamos selfie y documento claros. Puedes tomar foto o elegir un archivo del dispositivo.</span>
               </div>
 
-              <div className="upload-grid">
-                <div className="upload-card upload-card-file">
+              <div className="upload-grid" style={{ width: '100%', maxWidth: '100%' }}>
+                <div className="upload-card upload-card-file verify-upload-card" style={{ width: '100%' }}>
                   <span className="upload-card-icon">
                     <i className="fa-solid fa-camera-retro"></i>
                   </span>
@@ -172,14 +172,16 @@ export default function VerifyIdentity() {
                     type="file"
                     accept="image/*,.jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
                     className="form-input"
+                    capture="user"
                     onChange={(e) => setSelfieFile(e.target.files?.[0] || null)}
+                    style={{ maxWidth: '100%', width: '100%' }}
                   />
                   <span className={`upload-status ${selfieFile ? 'ready' : ''}`}>
                     {selfieFile ? selfieFile.name : 'Seleccionar selfie'}
                   </span>
                 </div>
 
-                <div className="upload-card upload-card-file">
+                <div className="upload-card upload-card-file verify-upload-card" style={{ width: '100%' }}>
                   <span className="upload-card-icon">
                     <i className="fa-solid fa-file-shield"></i>
                   </span>
@@ -190,6 +192,7 @@ export default function VerifyIdentity() {
                     accept="image/*,.jpg,.jpeg,.png,.webp,.pdf,image/jpeg,image/png,image/webp,application/pdf"
                     className="form-input"
                     onChange={(e) => setDocumentFile(e.target.files?.[0] || null)}
+                    style={{ maxWidth: '100%', width: '100%' }}
                   />
                   <span className={`upload-status ${documentFile ? 'ready' : ''}`}>
                     {documentFile ? documentFile.name : 'Seleccionar documento'}

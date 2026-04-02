@@ -197,28 +197,17 @@ export default function Chat() {
     <div className="chat-shell" style={{ padding: '0', maxWidth: '100%', width: '100%' }}>
       {toast && <div className="toast">{toast}</div>}
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: selectedContact ? '280px 1fr' : '1fr',
-        height: 'calc(100vh - var(--nav-height) - 40px)',
-        gap: '16px',
-        padding: '20px',
-      }}>
+      <div className={`chat-layout ${selectedContact ? 'chat-layout-thread-open' : ''}`}>
         {/* Contact List */}
-        <div className="card" style={{
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          borderRadius: 'var(--radius-xl)',
-        }}>
-          <div style={{ padding: '20px', borderBottom: '1px solid var(--border-light)' }}>
+        <div className={`card chat-sidebar ${selectedContact ? 'chat-sidebar-hidden-mobile' : ''}`}>
+          <div className="chat-sidebar-header">
             <h2 style={{ fontSize: '20px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '10px' }}>
               <i className="fa-solid fa-comments" style={{ color: 'var(--primary)' }}></i>
               Chats
             </h2>
           </div>
 
-          <div style={{ overflowY: 'auto', flex: 1 }}>
+          <div className="chat-contact-list">
             {loading && contacts.length === 0 ? (
               <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
                 <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px', marginBottom: '12px', display: 'block' }}></i>
@@ -235,19 +224,7 @@ export default function Chat() {
                   key={contact.id}
                   type="button"
                   onClick={() => loadMessages(contact)}
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '14px',
-                    padding: '16px 20px',
-                    background: selectedContact?.id === contact.id ? 'rgba(99, 102, 241, 0.1)' : 'transparent',
-                    border: 'none',
-                    borderBottom: '1px solid var(--border-light)',
-                    cursor: 'pointer',
-                    textAlign: 'left',
-                    transition: 'all var(--transition-fast)',
-                  }}
+                  className={`chat-contact-item ${selectedContact?.id === contact.id ? 'active' : ''}`}
                 >
                   {contact.avatar ? (
                     <img
@@ -297,32 +274,13 @@ export default function Chat() {
 
         {/* Messages Area */}
         {selectedContact && (
-          <div className="card" style={{
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            borderRadius: 'var(--radius-xl)',
-          }}>
+          <div className="card chat-panel">
             {/* Header */}
-            <div style={{
-              padding: '16px 20px',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '14px',
-            }}>
+            <div className="chat-panel-header">
               <button
                 type="button"
                 onClick={() => setSelectedContact(null)}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  padding: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                }}
+                className="chat-back-button"
               >
                 <i className="fa-solid fa-arrow-left" style={{ fontSize: '18px' }}></i>
               </button>
@@ -359,12 +317,7 @@ export default function Chat() {
             </div>
 
             {/* Messages */}
-            <div style={{
-              flex: 1,
-              overflowY: 'auto',
-              padding: '20px',
-              background: 'var(--bg-secondary)',
-            }}>
+            <div className="chat-thread">
               {loading ? (
                 <div style={{ textAlign: 'center', padding: '40px', color: 'var(--text-muted)' }}>
                   <i className="fa-solid fa-spinner fa-spin" style={{ fontSize: '32px' }}></i>
@@ -410,12 +363,8 @@ export default function Chat() {
             </div>
 
             {/* Input */}
-            <div style={{
-              padding: '16px 20px',
-              borderTop: '1px solid var(--border-light)',
-              background: 'var(--bg-card)',
-            }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <div className="chat-composer">
+              <div className="chat-composer-row">
                 <input
                   type="text"
                   className="form-input"

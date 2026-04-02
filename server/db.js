@@ -17,6 +17,86 @@ let usePostgreSQL = databaseUrl && !databaseUrl.includes('sqlite');
 let db;
 let dbType;
 
+const POSTGRES_LEGACY_ALIASES = {
+    isverified: 'isVerified',
+    verificationstatus: 'verificationStatus',
+    onboardingcompleted: 'onboardingCompleted',
+    profilestatus: 'profileStatus',
+    profileanswers: 'profileAnswers',
+    verificationdata: 'verificationData',
+    verificationreview: 'verificationReview',
+    manualstatus: 'manualStatus',
+    isonline: 'isOnline',
+    lastseen: 'lastSeen',
+    batterylevel: 'batteryLevel',
+    provideramount: 'providerAmount',
+    externalreference: 'externalReference',
+    providername: 'providerName',
+    servicelabel: 'serviceLabel',
+    hourlyrate: 'hourlyRate',
+    mppreferenceid: 'mpPreferenceId',
+    mppaymentid: 'mpPaymentId',
+    mpstatus: 'mpStatus',
+    notificationpayload: 'notificationPayload',
+    respondedat: 'respondedAt',
+    createdat: 'createdAt',
+    updatedat: 'updatedAt',
+    reviewedat: 'reviewedAt',
+};
+
+function normalizeQueryArgs(params, callback) {
+    if (typeof params === 'function') {
+        return { params: [], callback: params };
+    }
+
+    return {
+        params: Array.isArray(params) ? params : [],
+        callback,
+    };
+}
+
+function toPostgresPlaceholders(sql) {
+    let parameterIndex = 0;
+    return String(sql || '').replace(/\?/g, () => `$${++parameterIndex}`);
+}
+
+function toCamelCase(value) {
+    return String(value || '').replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function normalizePostgresRow(row) {
+    if (!row || typeof row !== 'object') return row;
+
+    const normalizedRow = { ...row };
+
+    Object.entries(row).forEach(([key, value]) => {
+        const alias = POSTGRES_LEGACY_ALIASES[key]
+            || (key.includes('_') ? toCamelCase(key) : null);
+
+        if (alias && normalizedRow[alias] === undefined) {
+            normalizedRow[alias] = value;
+        }
+    });
+
+    return normalizedRow;
+}
+
+function attachPromiseToCallback(promise, callback, contextBuilder = () => ({})) {
+    if (typeof callback !== 'function') {
+        return promise;
+    }
+
+    promise
+        .then((result) => {
+            callback.call(contextBuilder(result), null, result);
+        })
+        .catch((error) => {
+            callback.call(contextBuilder(null), error);
+        });
+
+    return undefined;
+}
+
 if (usePostgreSQL) {
     // =============================================================================
     // MODO POSTGRESQL (Producción)
@@ -43,22 +123,48 @@ if (usePostgreSQL) {
 
         db = {
             // Método para consultas con parámetros
-            all: async (sql, params = []) => {
-                const result = await pool.query(sql.replace(/\?/g, '$&'), params.map((p, i) => params[i]));
-                return result.rows;
+            all: (sql, params = [], callback) => {
+                const args = normalizeQueryArgs(params, callback);
+                const queryPromise = pool
+                    .query(toPostgresPlaceholders(sql), args.params)
+                    .then((result) => result.rows.map((row) => normalizePostgresRow(row)));
+
+                return attachPromiseToCallback(queryPromise, args.callback);
             },
 
-            get: async (sql, params = []) => {
-                const result = await pool.query(sql.replace(/LIMIT 1/i, 'LIMIT 1'), params);
-                return result.rows[0] || null;
+            get: (sql, params = [], callback) => {
+                const args = normalizeQueryArgs(params, callback);
+                const queryPromise = pool
+                    .query(toPostgresPlaceholders(sql), args.params)
+                    .then((result) => normalizePostgresRow(result.rows[0] || null));
+
+                return attachPromiseToCallback(queryPromise, args.callback);
             },
 
-            run: async (sql, params = []) => {
-                const result = await pool.query(sql, params);
-                return {
-                    changes: result.rowCount,
-                    lastID: result.rows?.[0]?.id,
-                };
+            run: (sql, params = [], callback) => {
+                const args = normalizeQueryArgs(params, callback);
+                let queryText = toPostgresPlaceholders(sql);
+
+                if (/^\s*INSERT\b/i.test(queryText) && !/\bRETURNING\b/i.test(queryText)) {
+                    queryText = `${queryText} RETURNING *`;
+                }
+
+                const queryPromise = pool
+                    .query(queryText, args.params)
+                    .then((result) => {
+                        const firstRow = normalizePostgresRow(result.rows?.[0] || null);
+                        return {
+                            changes: result.rowCount,
+                            lastID: firstRow?.id ?? null,
+                            row: firstRow,
+                        };
+                    });
+
+                return attachPromiseToCallback(queryPromise, args.callback, (result) => ({
+                    changes: result?.changes || 0,
+                    lastID: result?.lastID ?? null,
+                    row: result?.row || null,
+                }));
             },
 
             // Método para PRAGMA (solo SQLite, no hacer nada en PostgreSQL)

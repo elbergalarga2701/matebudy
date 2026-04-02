@@ -132,7 +132,8 @@ body::before {
   body,
   #root {
     position: relative;
-    overflow: visible;
+    overflow-y: auto;
+    overflow-x: hidden;
   }
 
   /* Inputs grandes para touch */
@@ -143,6 +144,34 @@ body::before {
     min-height: 48px;
     font-size: 16px;
   }
+}
+
+/* SCROLL FIX - Web y APK */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+/* Evitar que las shells excedan el ancho */
+.social-feed-shell,
+.profile-shell,
+.chat-shell,
+.auth-container {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
 }
 
 /* SCROLLBAR */
@@ -467,9 +496,14 @@ textarea::placeholder {
 
 .social-post-image {
   width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: 500px;
+  object-fit: contain;
   border-radius: var(--radius-md);
   margin-top: 12px;
   box-shadow: var(--shadow-md);
+  background: var(--bg-secondary);
 }
 
 .social-post-actions {
@@ -1042,11 +1076,13 @@ textarea::placeholder {
     grid-template-columns: 1fr;
     max-width: 480px;
     padding: 20px;
+    width: 100%;
   }
 
   .auth-shell-wide {
     max-width: 100% !important;
     padding: 15px !important;
+    width: 100% !important;
   }
 
   .auth-hero-panel {
@@ -1057,11 +1093,13 @@ textarea::placeholder {
     padding: 24px 18px !important;
     width: 100% !important;
     max-width: 100% !important;
+    box-sizing: border-box;
   }
 
   .auth-card-wide {
     width: 100% !important;
     max-width: 100% !important;
+    box-sizing: border-box;
   }
 
   .auth-hero-title {
@@ -1072,11 +1110,21 @@ textarea::placeholder {
   body {
     overflow-y: auto;
     position: relative !important;
+    width: 100%;
+    max-width: 100%;
   }
 
   #root {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .auth-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: hidden !important;
   }
 
   /* Inputs y botones mas grandes para touch */
@@ -1086,11 +1134,13 @@ textarea::placeholder {
   button {
     min-height: 48px;
     font-size: 16px;
+    max-width: 100%;
   }
 
   /* File inputs responsive */
   input[type="file"] {
     font-size: 14px;
+    max-width: 100%;
   }
 
   /* Evitar desbordamiento de imagenes */
@@ -1344,28 +1394,68 @@ textarea::placeholder {
 .upload-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 12px;
+  width: 100%;
+  max-width: 100%;
 }
 
 @media (max-width: 768px) {
   .upload-grid {
     grid-template-columns: 1fr;
-    gap: 12px;
+    gap: 10px;
+    width: 100% !important;
+    max-width: 100% !important;
   }
 }
 
-/* Upload card */
+/* Upload card - más compacto */
 .upload-card {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 20px;
+  gap: 8px;
+  padding: 14px 12px;
   background: var(--bg-secondary);
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-md);
   border: 2px dashed var(--border-light);
   text-align: center;
   transition: all var(--transition-fast);
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.upload-card p {
+  font-size: 11px;
+  line-height: 1.3;
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.upload-card strong {
+  font-size: 13px;
+}
+
+.upload-card-icon {
+  font-size: 24px;
+  color: var(--primary);
+  margin-bottom: 4px;
+}
+
+.upload-card input[type="file"] {
+  font-size: 11px;
+  padding: 6px;
+  width: 100%;
+  max-width: 100%;
+}
+
+.upload-status {
+  font-size: 10px;
+  padding: 4px 10px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .upload-card:hover {
@@ -1800,10 +1890,25 @@ textarea::placeholder {
 /* =============================================================================
    KEYBOARD FIX FOR CAPACITOR - IONIC RESIZE
    ============================================================================= */
+
+/* Prevent black box when keyboard appears on Android/Capacitor */
 @media (max-width: 768px) {
-  /* Prevent black box when keyboard appears */
-  .capacitor-keyboard-active {
+  /* When keyboard is visible */
+  .capacitor-keyboard-active,
+  .keyboard-open {
     overflow-y: auto !important;
+    overflow-x: hidden !important;
+  }
+
+  .keyboard-open body,
+  .keyboard-open #root,
+  .keyboard-open .auth-container,
+  .keyboard-open form {
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    position: relative !important;
+    -webkit-overflow-scrolling: touch;
   }
 
   /* Ensure forms scroll properly when keyboard is open */
@@ -1815,5 +1920,358 @@ textarea::placeholder {
   input:focus,
   textarea:focus {
     scroll-margin-bottom: 200px;
+  }
+
+  /* Fix black box overlay - keyboard issue */
+  body, html, #root {
+    position: relative;
+    overflow: visible !important;
+    height: auto !important;
+    max-width: 100% !important;
+  }
+
+  /* Prevent fixed elements from causing black box */
+  .bottom-nav-shell,
+  .toast,
+  [style*="position: fixed"] {
+    will-change: transform;
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0);
+  }
+
+  /* When keyboard is visible, adjust viewport */
+  :root:has(:focus-visible) {
+    overflow-y: auto;
+  }
+
+  /* Capacitor Android specific fixes */
+  body.platform-android,
+  html.platform-android {
+    overflow-y: scroll !important;
+  }
+}
+
+/* Keyboard resize mode for Capacitor */
+.keyboard-open body,
+.keyboard-open #root,
+.keyboard-open .auth-container {
+  overflow-y: auto !important;
+  height: auto !important;
+  position: relative !important;
+}
+
+/* =============================================================================
+   KEYBOARD FIX FOR CAPACITOR ANDROID - AGGRESSIVE FIX
+   ============================================================================= */
+
+/* Global box-sizing */
+*, *:before, *:after {
+  box-sizing: border-box;
+}
+
+html {
+  box-sizing: border-box;
+  overflow-x: hidden;
+  width: 100%;
+}
+
+body {
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+}
+
+#root {
+  overflow-x: hidden;
+  overflow-y: auto;
+  width: 100%;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+}
+
+/* Android keyboard specific fixes */
+@media (max-width: 768px) {
+  /* When keyboard appears */
+  body.keyboard-visible,
+  body.keyboard-open,
+  body:has(input:focus),
+  body:has(textarea:focus) {
+    position: relative !important;
+    overflow-y: auto !important;
+    overflow-x: hidden !important;
+    height: auto !important;
+    width: 100% !important;
+  }
+
+  /* Remove fixed positioning when keyboard is visible */
+  body.keyboard-visible .bottom-nav-shell,
+  body.keyboard-open .bottom-nav-shell {
+    position: absolute !important;
+    bottom: 0;
+    left: 0;
+    right: 0;
+  }
+
+  /* Prevent black overlay */
+  .keyboard-visible #root,
+  .keyboard-open #root,
+  .keyboard-visible .auth-container,
+  .keyboard-open .auth-container {
+    position: relative !important;
+    overflow: visible !important;
+  }
+
+  /* Fix for all inputs */
+  input:focus,
+  textarea:focus,
+  select:focus {
+    scroll-margin-bottom: 250px;
+  }
+
+  /* Forms should scroll */
+  form {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+  }
+
+  /* Prevent zoom on focus */
+  input, textarea, select, button {
+    font-size: 16px !important;
+  }
+
+  /* Remove any fixed elements that could cause black box */
+  [style*="position: fixed"] {
+    will-change: auto;
+  }
+}
+
+/* Capacitor Android specific */
+.platform-android body,
+.platform-android html {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+
+/* Force no horizontal scroll anywhere */
+.auth-container,
+.auth-shell,
+.auth-shell-wide,
+.auth-card,
+.auth-card-wide {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* =============================================================================
+   2026-04-02 FIXES: VERIFY IDENTITY, ADMIN, CHAT KEYBOARD
+   ============================================================================= */
+
+.chat-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 16px;
+  padding: 20px;
+  min-height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 40px);
+}
+
+.chat-layout:not(.chat-layout-thread-open) {
+  grid-template-columns: minmax(260px, 320px);
+}
+
+.chat-sidebar,
+.chat-panel {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--radius-xl);
+  min-height: 0;
+}
+
+.chat-sidebar-header,
+.chat-panel-header {
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.chat-contact-list,
+.chat-thread {
+  overflow-y: auto;
+  min-height: 0;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat-thread {
+  flex: 1;
+  padding: 20px;
+  background: var(--bg-secondary);
+}
+
+.chat-contact-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 20px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+  text-align: left;
+  transition: all var(--transition-fast);
+  box-shadow: none;
+  color: inherit;
+}
+
+.chat-contact-item:hover,
+.chat-contact-item.active {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.chat-back-button {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  box-shadow: none;
+}
+
+.chat-back-button:hover {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  transform: none;
+}
+
+.chat-composer {
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid var(--border-light);
+  background: var(--bg-card);
+}
+
+.chat-composer-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.admin-review-screen {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .verify-identity-shell {
+    align-items: flex-start;
+    padding: 8px 8px calc(var(--nav-height) + var(--safe-bottom) + 24px);
+  }
+
+  .verify-identity-content {
+    padding: 0 !important;
+  }
+
+  .verify-identity-card {
+    padding: 16px 14px !important;
+    border-radius: 20px;
+  }
+
+  .verify-identity-card .auth-header {
+    margin-bottom: 12px;
+  }
+
+  .verify-identity-card .auth-brand-row {
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 14px;
+  }
+
+  .verify-identity-card .auth-title {
+    font-size: 24px;
+  }
+
+  .verify-identity-card .auth-subtitle {
+    margin-bottom: 18px;
+    font-size: 14px;
+  }
+
+  .verify-identity-card .auth-section {
+    padding: 12px;
+  }
+
+  .verify-identity-card .checklist-panel {
+    gap: 8px;
+  }
+
+  .verify-identity-card .checklist-item {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .verify-identity-card .role-option-card {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .verify-upload-card {
+    align-items: flex-start;
+    text-align: left;
+    padding: 12px;
+  }
+
+  .verify-upload-card p {
+    font-size: 12px;
+  }
+
+  .verify-upload-card .upload-status {
+    white-space: normal;
+    word-break: break-word;
+    width: 100%;
+  }
+
+  .verify-identity-card .btn-auth-main {
+    position: sticky;
+    bottom: 12px;
+    z-index: 4;
+  }
+
+  .chat-layout,
+  .chat-layout:not(.chat-layout-thread-open) {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    min-height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 20px);
+  }
+
+  .chat-sidebar-hidden-mobile {
+    display: none;
+  }
+
+  .chat-panel {
+    min-height: calc(100dvh - var(--nav-height) - var(--safe-bottom) - 36px);
+  }
+
+  .chat-thread {
+    padding: 16px 14px;
+  }
+
+  .chat-bubble {
+    max-width: 88%;
+  }
+
+  .chat-composer {
+    padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+
+  body.keyboard-visible .bottom-nav-shell,
+  body.keyboard-open .bottom-nav-shell {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(100%);
   }
 }

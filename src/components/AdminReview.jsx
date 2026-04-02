@@ -261,9 +261,9 @@ export default function AdminReview() {
 
   if (!adminUnlocked) {
     return (
-      <div className="auth-container">
+      <div className="auth-container admin-review-screen" style={{ alignItems: 'flex-start', paddingTop: '24px', paddingBottom: '32px' }}>
         <div className="auth-bg"></div>
-        <div className="auth-card">
+        <div className="auth-card" style={{ width: '100%', maxWidth: '560px', margin: '0 auto', position: 'relative', zIndex: 1 }}>
           <div className="auth-header">
             <div className="auth-logo">
               <i className="fa-solid fa-user-shield"></i>
@@ -308,7 +308,7 @@ export default function AdminReview() {
   }
 
   return (
-    <div className="app-scroll" style={{ minHeight: '100vh', padding: '0 0 40px' }}>
+    <div className="app-scroll admin-review-screen" style={{ minHeight: '100vh', padding: '0 0 40px' }}>
       <div className="page-shell page-stack">
         <section className="hero-banner">
           <div style={{ display: 'flex', justifyContent: 'space-between', gap: '16px', flexWrap: 'wrap' }}>

@@ -2,11 +2,30 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { apiUrl, socketUrl } from './api';
 import { getStoredItem, removeStoredItem, setStoredItem, syncStoredItems } from './storage';
 
-const isCapacitor = typeof window !== 'undefined' && (
-  window.location.protocol === 'capacitor:' ||
-  (typeof window.android !== 'undefined') ||
-  (typeof window.webkit !== 'undefined' && window.webkit.messageHandlers && window.webkit.messageHandlers.bridge)
-);
+// Detectar si estamos en Capacitor/Android nativo
+function isNativePlatform() {
+  if (typeof window === 'undefined') return false;
+
+  if (window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:') {
+    return true;
+  }
+
+  if (/Android/i.test(window.navigator.userAgent || '')) {
+    return true;
+  }
+
+  if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform()) {
+    return true;
+  }
+
+  if (typeof window.android !== 'undefined' || typeof window.webkit !== 'undefined') {
+    return true;
+  }
+
+  return false;
+}
+
+const isCapacitor = isNativePlatform();
 
 const AuthContext = createContext(null);
 let refreshPromise = null;
@@ -137,7 +156,7 @@ async function apiFetch(path, options = {}) {
   const token = localStorage.getItem(STORAGE_KEYS.token);
   const isFormData = options.body instanceof FormData;
   const fullUrl = apiUrl(path);
-  
+
   console.log('[apiFetch] Request:', { url: fullUrl, method: options.method, isFormData });
 
   // Para Capacitor, usar XMLHttpRequest para evitar problemas de CORS en Android WebView
@@ -146,7 +165,7 @@ async function apiFetch(path, options = {}) {
       const xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', fullUrl, true);
       xhr.withCredentials = true;
-      
+
       // Set headers
       if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
       if (options.headers) {
@@ -154,8 +173,8 @@ async function apiFetch(path, options = {}) {
           xhr.setRequestHeader(key, options.headers[key]);
         });
       }
-      
-      xhr.onload = function() {
+
+      xhr.onload = function () {
         const response = {
           ok: xhr.status >= 200 && xhr.status < 300,
           status: xhr.status,
@@ -165,12 +184,12 @@ async function apiFetch(path, options = {}) {
         console.log('[apiFetch] Response:', { status: xhr.status, ok: response.ok, url: fullUrl });
         resolve(response);
       };
-      
-      xhr.onerror = function() {
+
+      xhr.onerror = function () {
         console.error('[apiFetch] XHR error:', { url: fullUrl, status: xhr.status });
         reject(new Error('No se pudo conectar con el servidor'));
       };
-      
+
       xhr.send(options.body || null);
     });
   }
@@ -196,7 +215,7 @@ async function apiFetch(path, options = {}) {
   try {
     let response = await executeFetch();
     console.log('[apiFetch] Response:', { status: response.status, ok: response.ok, url: fullUrl });
-    
+
     if (response.status !== 401 || path === '/api/auth/refresh' || options.skipRefresh) {
       return response;
     }
@@ -393,7 +412,7 @@ export function AuthProvider({ children }) {
         void apiFetch('/api/auth/refresh', {
           method: 'POST',
           skipRefresh: true,
-        }).catch(() => {});
+        }).catch(() => { });
       }
     };
 
@@ -457,7 +476,7 @@ export function AuthProvider({ children }) {
     documentFile,
   }) => {
     console.log('[Register] Starting registration with identity...', { name, email, role, hasSelfie: !!selfieFile, hasDocument: !!documentFile });
-    
+
     const formData = new FormData();
     formData.append('name', name);
     formData.append('email', email);
@@ -470,7 +489,7 @@ export function AuthProvider({ children }) {
     formData.append('documentNumber', documentNumber);
     formData.append('selfie', selfieFile);
     formData.append('document', documentFile);
-    
+
     console.log('[Register] FormData created, selfie:', selfieFile?.name, 'document:', documentFile?.name);
 
     try {

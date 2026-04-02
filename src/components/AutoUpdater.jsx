@@ -9,91 +9,188 @@ function parseVersion(version) {
   return (parts[0] * 10000) + (parts[1] * 100) + (parts[2] || 0);
 }
 
-function triggerDownload(url) {
-  const popup = window.open(url, '_blank', 'noopener,noreferrer');
-  if (popup) return true;
+function isNativePlatform() {
+  if (typeof window === 'undefined') return false;
+  return Capacitor.isNativePlatform()
+    || window.location.protocol === 'capacitor:'
+    || window.location.protocol === 'ionic:'
+    || /Android/i.test(window.navigator.userAgent || '');
+}
 
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.target = '_self';
-  anchor.rel = 'noopener noreferrer';
-  anchor.download = 'matebudy-update.apk';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
+function triggerAutoReload() {
+  // En nativo, recargar la WebView completamente
+  if (isNativePlatform()) {
+    window.location.reload();
+    return true;
+  }
+
+  // En web, intentar service worker update
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+      registrations.forEach((registration) => {
+        registration.update();
+      });
+    });
+  }
+
+  window.location.reload();
   return true;
 }
 
 export default function AutoUpdater() {
   const [updateAvailable, setUpdateAvailable] = useState(false);
-  const [downloading, setDownloading] = useState(false);
+  const [checking, setChecking] = useState(false);
   const [updateInfo, setUpdateInfo] = useState(null);
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const isAndroidBrowser = /Android/i.test(window.navigator.userAgent || '');
-    if (!Capacitor.isNativePlatform() && !isAndroidBrowser) return;
+    // Solo ejecutar en plataforma nativa
+    if (!isNativePlatform()) return;
+
+    // Check inmediato al iniciar
     void checkForUpdate();
+
+    // Check periódico cada 60 segundos
+    const intervalId = window.setInterval(() => {
+      void checkForUpdate();
+    }, 60000);
+
+    return () => {
+      if (intervalId) window.clearInterval(intervalId);
+    };
   }, []);
 
   const checkForUpdate = async () => {
+    if (checking) return;
+
     try {
+      setChecking(true);
+      setError('');
+
       const res = await fetch(UPDATE_JSON_URL, {
         cache: 'no-store',
+        headers: {
+          'Accept': 'application/json',
+        },
       });
-      if (!res.ok) return;
+
+      if (!res.ok) {
+        console.log('[AutoUpdater] Update check returned:', res.status);
+        return;
+      }
 
       const data = await res.json();
-      if (!data?.url) {
+
+      if (!data?.url || !data?.version) {
         setUpdateAvailable(false);
         setUpdateInfo(null);
         return;
       }
 
-      if (parseVersion(data.version) > parseVersion(CURRENT_VERSION)) {
+      const isUpdateAvailable = parseVersion(data.version) > parseVersion(CURRENT_VERSION);
+
+      console.log('[AutoUpdater] Version check:', {
+        current: CURRENT_VERSION,
+        remote: data.version,
+        hasUpdate: isUpdateAvailable,
+        buildId: data.buildId,
+      });
+
+      if (isUpdateAvailable) {
         setUpdateAvailable(true);
         setUpdateInfo(data);
+
+        // Auto-reload después de 2 segundos si hay update
+        window.setTimeout(() => {
+          console.log('[AutoUpdater] Applying update automatically...');
+          triggerAutoReload();
+        }, 2000);
       } else {
         setUpdateAvailable(false);
         setUpdateInfo(null);
       }
     } catch (err) {
-      console.log('Update check failed:', err?.message || err);
-    }
-  };
-
-  const downloadUpdate = async () => {
-    if (!updateInfo?.url) return;
-
-    try {
-      setError('');
-      setDownloading(true);
-      const opened = triggerDownload(updateInfo.url);
-      if (!opened) {
-        throw new Error('No se pudo abrir la descarga');
-      }
-    } catch (err) {
-      setError('No se pudo abrir la descarga de la actualizacion.');
+      console.log('[AutoUpdater] Update check failed:', err?.message || err);
+      setError(err?.message || 'Error al verificar actualizacion');
     } finally {
-      window.setTimeout(() => setDownloading(false), 900);
+      setChecking(false);
     }
   };
 
-  if (!updateAvailable) return null;
+  const manualCheck = async () => {
+    setError('');
+    await checkForUpdate();
+  };
+
+  // Solo mostrar UI en desarrollo o si hay error
+  if (!updateAvailable && !error) return null;
 
   return (
-    <div style={{ position: 'fixed', bottom: 20, left: 20, right: 20, background: '#fff', padding: 16, borderRadius: 12, boxShadow: '0 4px 20px rgba(0,0,0,0.2)', zIndex: 9999 }}>
-      <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: 16 }}>Nueva version disponible</p>
+    <div style={{
+      position: 'fixed',
+      bottom: 80,
+      left: 20,
+      right: 20,
+      background: '#fff',
+      padding: 16,
+      borderRadius: 12,
+      boxShadow: '0 4px 20px rgba(0,0,0,0.2)',
+      zIndex: 9999,
+      border: '2px solid #10b981',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+        <div style={{
+          width: 24,
+          height: 24,
+          border: '3px solid #10b981',
+          borderTopColor: 'transparent',
+          borderRadius: '50%',
+          animation: checking ? 'spin 1s linear infinite' : 'none',
+        }}></div>
+        <p style={{ margin: 0, fontWeight: 600, fontSize: 14, color: '#10b981' }}>
+          {checking ? 'Verificando actualizacion...' : updateAvailable ? 'Actualizacion disponible' : 'Sin actualizaciones'}
+        </p>
+      </div>
+
       {updateInfo?.notes && (
-        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#666' }}>{updateInfo.notes}</p>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#666' }}>{updateInfo.notes}</p>
       )}
+
       {error && (
-        <p style={{ margin: '0 0 12px', fontSize: 13, color: '#b42318' }}>{error}</p>
+        <p style={{ margin: '8px 0 0', fontSize: 12, color: '#b42318' }}>{error}</p>
       )}
-      <button onClick={downloadUpdate} disabled={downloading} style={{ width: '100%', padding: '12px 16px', background: '#1a3f71', color: 'white', border: 'none', borderRadius: 8, cursor: downloading ? 'not-allowed' : 'pointer', fontWeight: 600 }}>
-        {downloading ? 'Abriendo descarga...' : `Descargar v${updateInfo?.version || CURRENT_VERSION}`}
+
+      {updateAvailable && (
+        <p style={{ margin: '8px 0 0', fontSize: 11, color: '#10b981' }}>
+          Recargando automaticamente en breve...
+        </p>
+      )}
+
+      <button
+        onClick={manualCheck}
+        disabled={checking}
+        style={{
+          width: '100%',
+          padding: '10px 16px',
+          background: checking ? '#ccc' : '#10b981',
+          color: 'white',
+          border: 'none',
+          borderRadius: 8,
+          cursor: checking ? 'not-allowed' : 'pointer',
+          fontWeight: 600,
+          fontSize: 13,
+          marginTop: 8,
+        }}
+      >
+        {checking ? 'Verificando...' : 'Buscar actualizacion manualmente'}
       </button>
+
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 }

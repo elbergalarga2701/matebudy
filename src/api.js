@@ -28,7 +28,33 @@ function joinBaseAndPath(base, path) {
   return `${normalizedBase}${normalizedPath}`;
 }
 
+function isNativePlatform() {
+  if (typeof window === 'undefined') return false;
+
+  // Capacitor native platform check
+  if (window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:') {
+    return true;
+  }
+
+  // Android WebView detection
+  if (/Android/i.test(window.navigator.userAgent || '')) {
+    return true;
+  }
+
+  // Check for Capacitor/Cordova objects
+  if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform()) {
+    return true;
+  }
+
+  if (typeof window.android !== 'undefined' || typeof window.webkit !== 'undefined') {
+    return true;
+  }
+
+  return false;
+}
+
 function resolveApiBase() {
+  // Environment variable takes precedence
   const envApiBase = stripTrailingSlash(import.meta.env.VITE_API_URL);
   if (envApiBase) {
     return envApiBase;
@@ -38,15 +64,16 @@ function resolveApiBase() {
     return RENDER_BACKEND;
   }
 
+  // Native platforms (Capacitor/Android WebView) always use Render backend
+  if (isNativePlatform()) {
+    console.log('[api.js] Native platform detected, using Render backend');
+    return RENDER_BACKEND;
+  }
+
   const { protocol, hostname, port, origin } = window.location;
-  const isNativeShell = protocol === 'capacitor:' || protocol === 'ionic:';
   const isLocalDevServer = (hostname === 'localhost' || hostname === '127.0.0.1') && port === '5173';
   const renderBackendHost = new URL(RENDER_BACKEND).hostname;
   const isSeparateRenderFrontend = hostname.endsWith('.onrender.com') && hostname !== renderBackendHost;
-
-  if (isNativeShell) {
-    return RENDER_BACKEND;
-  }
 
   if (isLocalDevServer) {
     return LOCAL_BACKEND;
@@ -74,6 +101,13 @@ function resolveSocketBase(apiBase) {
 
 const computedApiBase = resolveApiBase();
 const computedSocketBase = resolveSocketBase(computedApiBase);
+
+console.log('[api.js] API configuration:', {
+  apiBase: computedApiBase,
+  socketBase: computedSocketBase,
+  isNative: isNativePlatform(),
+  env: import.meta.env.VITE_API_URL,
+});
 
 export function apiUrl(path) {
   return joinBaseAndPath(computedApiBase, path);

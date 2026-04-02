@@ -3,6 +3,23 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../AuthContext';
 import { forceAppReload, getNotificationPermissionState, requestMatebudyNotifications, sendMatebudyTestNotification } from '../notifications';
 import { apiUrl, publicFileUrl } from '../api';
+import { Capacitor } from '@capacitor/core';
+
+const UPDATE_JSON_URL = import.meta.env.VITE_UPDATE_URL || 'https://matebudy.onrender.com/update.json';
+const CURRENT_VERSION = import.meta.env.VITE_APP_VERSION || '1.0.0';
+
+function parseVersion(version) {
+  const parts = String(version || '0.0.0').split('.').map((value) => Number(value) || 0);
+  return (parts[0] * 10000) + (parts[1] * 100) + (parts[2] || 0);
+}
+
+function isNativePlatform() {
+  if (typeof window === 'undefined') return false;
+  return Capacitor.isNativePlatform()
+    || window.location.protocol === 'capacitor:'
+    || window.location.protocol === 'ionic:'
+    || /Android/i.test(window.navigator.userAgent || '');
+}
 
 function fileToDataUrl(file) {
   return new Promise((resolve, reject) => {
@@ -21,6 +38,7 @@ export default function Profile() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState('');
   const [notificationPermission, setNotificationPermission] = useState(() => getNotificationPermissionState());
+  const [updateStatus, setUpdateStatus] = useState({ checking: false, available: false, version: '' });
   const viewedProfile = location.state?.profile || null;
   const isReadOnly = Boolean(location.state?.readOnly && viewedProfile);
 
@@ -107,6 +125,31 @@ export default function Profile() {
     const result = await requestMatebudyNotifications();
     setNotificationPermission(result);
     showToast(result === 'granted' ? 'Notificaciones activadas' : 'Permiso denegado');
+  };
+
+  const checkForUpdates = async () => {
+    if (!isNativePlatform()) {
+      showToast('Actualizaciones solo disponibles en la app movil');
+      return;
+    }
+
+    setUpdateStatus({ checking: true, available: false, version: '' });
+    try {
+      const res = await fetch(UPDATE_JSON_URL, { cache: 'no-store' });
+      const data = await res.json();
+
+      if (data?.version && parseVersion(data.version) > parseVersion(CURRENT_VERSION)) {
+        setUpdateStatus({ checking: false, available: true, version: data.version });
+        showToast(`Nueva version disponible: ${data.version}`);
+        window.location.reload();
+      } else {
+        setUpdateStatus({ checking: false, available: false, version: '' });
+        showToast('Ya tienes la ultima version');
+      }
+    } catch (error) {
+      setUpdateStatus({ checking: false, available: false, version: '' });
+      showToast('Error al verificar actualizacion');
+    }
   };
 
   const currentAvatar = publicFileUrl(profileForm.avatar || sourceProfile?.avatar || '') || profileForm.avatar;
@@ -355,11 +398,18 @@ export default function Profile() {
             <button
               type="button"
               className="btn btn-secondary"
-              onClick={() => window.dispatchEvent(new Event('matebudy:check-update'))}
-              style={{ justifyContent: 'flex-start', padding: '14px 18px' }}
+              onClick={checkForUpdates}
+              disabled={updateStatus.checking}
+              style={{ justifyContent: 'flex-start', padding: '14px 18px', position: 'relative' }}
             >
-              <i className="fa-solid fa-arrow-rotate-right" style={{ color: 'var(--accent)' }}></i>
-              <span style={{ flex: 1, textAlign: 'left' }}>Buscar actualizaciones</span>
+              <i className={`fa-solid ${updateStatus.checking ? 'fa-spinner fa-spin' : 'fa-arrow-rotate-right'}`} style={{ color: 'var(--accent)' }}></i>
+              <span style={{ flex: 1, textAlign: 'left' }}>Buscar actualizacion</span>
+              {updateStatus.available && (
+                <span className="badge badge-accent">Nueva version</span>
+              )}
+              {updateStatus.checking && (
+                <span className="badge badge-secondary">Verificando...</span>
+              )}
             </button>
 
             <button

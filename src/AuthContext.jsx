@@ -152,6 +152,10 @@ function explainApiFailure(error, fallbackMessage) {
   return message;
 }
 
+function isAuthEndpoint(path) {
+  return String(path || '').startsWith('/api/auth/');
+}
+
 async function apiFetch(path, options = {}) {
   const token = localStorage.getItem(STORAGE_KEYS.token);
   const isFormData = options.body instanceof FormData;
@@ -165,6 +169,7 @@ async function apiFetch(path, options = {}) {
       const xhr = new XMLHttpRequest();
       xhr.open(options.method || 'GET', fullUrl, true);
       xhr.timeout = 30000;
+      xhr.withCredentials = (options.credentials || 'include') === 'include';
 
       // Set headers
       if (token && !isFormData) {
@@ -239,7 +244,13 @@ async function apiFetch(path, options = {}) {
     let response = await executeFetch();
     console.log('[apiFetch] Response:', { status: response.status, ok: response.ok, url: fullUrl });
 
-    if (response.status !== 401 || path === '/api/auth/refresh' || options.skipRefresh) {
+    if (
+      response.status !== 401
+      || path === '/api/auth/refresh'
+      || options.skipRefresh
+      || isAuthEndpoint(path)
+      || !token
+    ) {
       return response;
     }
 

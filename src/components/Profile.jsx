@@ -136,6 +136,13 @@ export default function Profile() {
     setUpdateStatus({ checking: true, available: false, version: '' });
     try {
       const res = await fetch(UPDATE_JSON_URL, { cache: 'no-store' });
+
+      if (!res.ok) {
+        setUpdateStatus({ checking: false, available: false, version: '' });
+        showToast('No hay actualizaciones disponibles');
+        return;
+      }
+
       const data = await res.json();
 
       if (data?.version && parseVersion(data.version) > parseVersion(CURRENT_VERSION)) {
@@ -148,7 +155,7 @@ export default function Profile() {
       }
     } catch (error) {
       setUpdateStatus({ checking: false, available: false, version: '' });
-      showToast('Error al verificar actualizacion');
+      showToast('Sin actualizaciones disponibles');
     }
   };
 

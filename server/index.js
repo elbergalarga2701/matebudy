@@ -155,7 +155,8 @@ function resolveRailwayOrigin() {
 const localServerOrigin = `http://127.0.0.1:${PORT}`;
 const canonicalFrontendOrigin = sanitizePublicOrigin(process.env.APP_FRONTEND_URL)
   || (IS_HOSTED_PRODUCTION ? resolveRailwayOrigin() : localServerOrigin);
-const publicApkUrl = joinOriginAndPath(canonicalFrontendOrigin, '/Matebudy.apk');
+const PUBLIC_APK_PATH = '/matebudy.apk';
+const publicApkUrl = joinOriginAndPath(canonicalFrontendOrigin, PUBLIC_APK_PATH);
 
 function resolveFrontendBuildId() {
   if (process.env.APP_BUILD_ID) return process.env.APP_BUILD_ID;
@@ -195,6 +196,15 @@ function setStaticCacheHeaders(res, filePath) {
   }
 
   res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+}
+
+function resolveApkFilePath() {
+  const apkCandidates = [
+    path.join(projectRoot, 'server', 'matebudy.apk'),
+    path.join(projectRoot, 'server', 'Matebudy.apk'),
+  ];
+
+  return apkCandidates.find((apkPath) => fs.existsSync(apkPath)) || apkCandidates[0];
 }
 
 function shouldServeSpaIndex(reqPath) {
@@ -331,7 +341,7 @@ app.get('/update.json', (req, res) => {
 
 // Servir APK
 app.get(['/Matebudy.apk', '/matebudy.apk'], (req, res) => {
-  const apkPath = path.join(projectRoot, 'server', 'Matebudy.apk');
+  const apkPath = resolveApkFilePath();
 
   if (fs.existsSync(apkPath)) {
     res.download(apkPath, 'Matebudy.apk');

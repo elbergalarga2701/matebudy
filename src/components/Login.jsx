@@ -31,14 +31,17 @@ export default function Login() {
     setLoading(true);
 
     try {
+      console.log('[Login] Intentando login:', email);
       await login(email, password);
+      console.log('[Login] Exitoso:', email);
       navigate('/');
     } catch (loginError) {
       const message = String(loginError?.message || '').trim();
+      console.error('[Login] Error:', message, loginError);
       setError(
         /credenciales inv/i.test(message)
           ? 'Credenciales invalidas. Revisa tu correo y tu contrasena.'
-          : message || 'No se pudo iniciar sesion. Verifica el backend y vuelve a intentar.',
+          : message || 'No se pudo iniciar sesion. Verifica tu conexion a internet.',
       );
     } finally {
       setLoading(false);

@@ -27,8 +27,31 @@ function removeTempFile(filePath) {
 
 function detectStatusCode(message) {
   if (/no encontrado|no se puede restaurar|no coincide/i.test(message)) return 400;
+  if (/codigo administrativo/i.test(message)) return 401;
   if (/ya no esta permitida/i.test(message)) return 403;
   return 500;
+}
+
+function normalizeFlag(value) {
+  return /^(1|true|si|yes)$/i.test(String(value || '').trim());
+}
+
+function forceRestoreRequested(req) {
+  return normalizeFlag(req.query?.force) || normalizeFlag(req.body?.force);
+}
+
+function validateAdminCode(req) {
+  const expectedCode = String(process.env.ADMIN_PANEL_CODE || '').trim();
+  const providedCode = String(
+    req.headers['x-admin-code']
+    || req.body?.adminCode
+    || req.query?.adminCode
+    || '',
+  ).trim();
+
+  if (!expectedCode || !providedCode || expectedCode !== providedCode) {
+    throw new Error('Codigo administrativo invalido para restauracion forzada');
+  }
 }
 
 export const migrationRoutes = (app) => {
@@ -40,8 +63,14 @@ export const migrationRoutes = (app) => {
     }
 
     try {
+      const forceRestore = forceRestoreRequested(req);
+      if (forceRestore) {
+        validateAdminCode(req);
+      }
+
       const result = await restoreSqliteSnapshot({
         snapshotPath: req.file.path,
+        enforceBootstrapGuard: !forceRestore,
       });
 
       res.json({

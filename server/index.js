@@ -23,6 +23,7 @@ import { locationRoutes } from './routes/locations.js';
 import { paymentRoutes } from './routes/payments.js';
 import { sosRoutes } from './routes/sos.js';
 import { adminRoutes } from './routes/admin.js';
+import { migrationRoutes } from './routes/migration.js';
 
 // Importar base de datos
 import db from './db.js';
@@ -357,6 +358,7 @@ locationRoutes(app);
 paymentRoutes(app);
 sosRoutes(app);
 adminRoutes(app);
+migrationRoutes(app);
 
 // =============================================================================
 // SERVICIO DE ARCHIVOS ESTÁTICOS (Frontend)

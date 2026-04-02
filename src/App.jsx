@@ -32,22 +32,52 @@ function App() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: 'var(--bg-main)',
+          background: 'var(--bg-gradient)',
           flexDirection: 'column',
-          gap: '16px',
+          gap: '24px',
         }}
       >
         <div
           style={{
-            width: '48px',
-            height: '48px',
-            border: '4px solid var(--border)',
+            width: '80px',
+            height: '80px',
+            background: 'var(--gradient-primary)',
+            borderRadius: '20px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            boxShadow: '0 8px 24px rgba(16, 185, 129, 0.3)',
+          }}
+        >
+          <span style={{
+            fontSize: '36px',
+            fontWeight: 800,
+            color: 'white',
+            fontFamily: 'var(--font)',
+          }}>M</span>
+        </div>
+        <div style={{ textAlign: 'center' }}>
+          <h1 style={{
+            fontSize: '28px',
+            fontWeight: 800,
+            background: 'var(--gradient-primary)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            backgroundClip: 'text',
+            marginBottom: '8px',
+          }}>MateBudy</h1>
+          <p style={{ color: 'var(--text-secondary)', fontFamily: 'var(--font)', fontSize: '14px' }}>Cargando...</p>
+        </div>
+        <div
+          style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid var(--border-light)',
             borderTopColor: 'var(--primary)',
             borderRadius: '50%',
-            animation: 'spin 1s línear infinite',
+            animation: 'spin 1s linear infinite',
           }}
         ></div>
-        <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font)' }}>Cargando...</p>
       </div>
     );
   }

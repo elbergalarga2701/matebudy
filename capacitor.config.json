@@ -16,17 +16,18 @@
     "SplashScreen": {
       "launchShowDuration": 2000,
       "backgroundColor": "#10b981",
-      "showSpinner": true,
+      "showSpinner": false,
       "spinnerColor": "#ffffff",
       "splashFullScreen": true,
-      "splashImmersive": true
+      "splashImmersive": true,
+      "splashLayoutResourceName": "splash"
     },
     "Keyboard": {
-      "resize": "body",
+      "resize": "none",
       "style": "dark",
       "resizeOnFullScreen": true,
       "hideOnAccessoryBar": true,
-      "hideOnTap": false
+      "hideOnTap": true
     }
   }
 }

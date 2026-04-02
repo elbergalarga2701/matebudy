@@ -1049,12 +1049,24 @@ textarea::placeholder {
     padding: 20px;
   }
 
+  .auth-shell-wide {
+    max-width: 100% !important;
+    padding: 15px !important;
+  }
+
   .auth-hero-panel {
     display: none !important;
   }
 
   .auth-card {
-    padding: 32px 24px;
+    padding: 24px 18px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .auth-card-wide {
+    width: 100% !important;
+    max-width: 100% !important;
   }
 
   .auth-hero-title {
@@ -1070,6 +1082,26 @@ textarea::placeholder {
   #root {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
+  }
+
+  /* Inputs y botones mas grandes para touch */
+  input,
+  textarea,
+  select,
+  button {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  /* File inputs responsive */
+  input[type="file"] {
+    font-size: 14px;
+  }
+
+  /* Evitar desbordamiento de imagenes */
+  img {
+    max-width: 100%;
+    height: auto;
   }
 }
 

@@ -31,18 +31,22 @@ function joinBaseAndPath(base, path) {
 function isNativePlatform() {
   if (typeof window === 'undefined') return false;
 
+  // Protocolo nativo
   if (window.location.protocol === 'capacitor:' || window.location.protocol === 'ionic:') {
     return true;
   }
 
+  // Android WebView
   if (/Android/i.test(window.navigator.userAgent || '')) {
     return true;
   }
 
+  // Capacitor API
   if (typeof window.Capacitor !== 'undefined' && window.Capacitor.isNativePlatform()) {
     return true;
   }
 
+  // Android bridge
   if (typeof window.android !== 'undefined' || typeof window.webkit !== 'undefined') {
     return true;
   }
@@ -51,17 +55,19 @@ function isNativePlatform() {
 }
 
 function resolveApiBase() {
+  // PARA APK: SIEMPRE usar Render, ignorar variables de entorno
+  if (isNativePlatform()) {
+    console.log('[api.js] NATIVE PLATFORM - Using Render backend');
+    return RENDER_BACKEND;
+  }
+
+  // Para web, verificar entorno
   const envApiBase = stripTrailingSlash(import.meta.env.VITE_API_URL);
   if (envApiBase) {
     return envApiBase;
   }
 
   if (typeof window === 'undefined') {
-    return RENDER_BACKEND;
-  }
-
-  if (isNativePlatform()) {
-    console.log('[api.js] Native platform detected, using Render backend');
     return RENDER_BACKEND;
   }
 
@@ -96,11 +102,10 @@ function resolveSocketBase(apiBase) {
 const computedApiBase = resolveApiBase();
 const computedSocketBase = resolveSocketBase(computedApiBase);
 
-console.log('[api.js] API configuration:', {
+console.log('[api.js] Configuration:', {
   apiBase: computedApiBase,
   socketBase: computedSocketBase,
   isNative: isNativePlatform(),
-  env: import.meta.env.VITE_API_URL,
 });
 
 export function apiUrl(path) {
